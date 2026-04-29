@@ -22,6 +22,7 @@ add_executable(mscollab_tests
     test_fsshttp_session.cpp
     test_merge.cpp
     test_graph_api_client.cpp
+    test_ooxml_document.cpp
     ../../src/mscollab/auth/TokenStore.cpp
     ../../src/mscollab/auth/AuthModule.cpp
     ../../src/mscollab/fsshttp/FsshttpSerializer.cpp

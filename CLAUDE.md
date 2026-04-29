@@ -66,11 +66,14 @@ cmake -B build && cmake --build build
 |--------|---------------|
 | `auth/AuthModule` | OAuth 2.0 PKCE flow, browser login, token refresh |
 | `auth/TokenStore` | libsecret keyring persistence |
-| `fsshttp/FsshttpClient` | Top-level MS-FSSHTTP client, heartbeat thread |
-| `fsshttp/FsshttpSerializer` | SOAP/XML encode/decode for SubRequests |
+| `fsshttp/FsshttpClient` | Top-level MS-FSSHTTP client; 30s heartbeat + 5s GetChanges; delta queue; rejoin backoff |
+| `fsshttp/FsshttpSerializer` | SOAP/XML encode/decode for Coauth and Cell SubRequests |
 | `fsshttp/FsshttpSession` | Session state machine (Disconnected/Joining/Joined/Exiting) |
+| `fsshttp/FsshttpBinaryEncoder` | MS-FSSHTTPB binary encoder/decoder (CompactUint, ExGUID, StreamObjects) |
+| `fsshttp/FsshttpCellSubRequest` | Builds PutChanges/GetChanges FSSHTTPB binary payloads |
+| `fsshttp/OoxmlDocument` | Loads word/document.xml from .docx (libzip), applies/parses paragraph deltas |
 | `graph/GraphApiClient` | Microsoft Graph API — resolves OneDrive paths → SharePoint URLs, lists files |
-| `bridge/IntegrationBridge` | Owns all components, hooks into OnlyOffice open/close/message events |
+| `bridge/IntegrationBridge` | Owns all components; MergeEngine conflict resolution on incoming deltas |
 | `merge/MergeEngine` | Paragraph-level last-write-wins, structural conflicts → tracked changes |
 | `ui/OneDriveDialog` | Qt file picker dialog, driven by GraphApiClient |
 
@@ -130,8 +133,12 @@ MergeResult merge(const Delta& local, const Delta& remote) const
 - ✅ FsshttpBinaryEncoder: MS-FSSHTTPB CompactUint, ExGUID, CellID, StreamObjectHeader (16/32-bit), base64
 - ✅ FsshttpCellSubRequest: buildPutChanges, buildGetChanges, parseGetChangesResponse
 - ✅ FsshttpSerializer: encodeCellPutChanges, encodeCellGetChanges, decodeCellSubResponse
-- ✅ FsshttpClient: sendDelta now sends OOXML via PutChanges; heartbeat polls GetChanges every 30s
-- 🔲 Full OOXML serialization (currently writes minimal paragraph XML; needs proper .docx structure)
+- ✅ OoxmlDocument: libzip-based .docx loader, XML-escaped paragraph apply/serialize/parse
+- ✅ FsshttpClient: sendDelta uses OOXML; 5s GetChanges poll loop; delta queue; rejoin backoff
+- ✅ IntegrationBridge: openFromOneDrive, MergeEngine conflict resolution in remote delta path
+- ✅ JS shim: paragraph-level apply via asc_SetSelectionRange + asc_ReplaceText; TRACKED change support
+- 🔲 OoxmlDocument unit tests (without real .docx)
+- 🔲 GetChanges "knowledge" tracking (currently fetches all changes, not delta-since-last)
 - 🔲 OMML equation co-authoring
 - 🔲 Comments/tracked changes sync
 - 🔲 Excel / PowerPoint support
