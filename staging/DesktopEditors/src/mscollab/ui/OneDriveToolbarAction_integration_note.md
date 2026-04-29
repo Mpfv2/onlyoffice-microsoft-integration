@@ -27,20 +27,15 @@ connect(openOneDriveAction, &QAction::triggered, this, [this]() {
     if (dlg.exec() == QDialog::Accepted) {
         // Open the downloaded file in OnlyOffice
         openLocalFile(dlg.selectedLocalPath());
-        // The IntegrationBridge will detect the OneDrive webUrl and start co-authoring
-        m_mscollabBridge.onDocumentOpened(dlg.selectedWebUrl().toStdString());
+        // Start co-authoring: pass webUrl (for FSSHTTP) AND localPath (for OOXML loading)
+        m_mscollabBridge.openFromOneDrive(
+            dlg.selectedWebUrl().toStdString(),
+            dlg.selectedLocalPath().toStdString());
     }
 });
 ```
 
-## 3. Expose authModule() from IntegrationBridge
-
-Add to `IntegrationBridge.h`:
-```cpp
-AuthModule& authModule() { return m_auth; }
-```
-
-## 4. Icon
+## 3. Icon
 
 Place a 24×24 OneDrive icon at:
 `resources/icons/onedrive.png`

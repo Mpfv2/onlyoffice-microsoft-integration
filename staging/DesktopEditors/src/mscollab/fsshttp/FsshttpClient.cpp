@@ -59,12 +59,15 @@ bool FsshttpClient::joinSession() {
     if (!result.success) return false;
     m_running = true;
     m_heartbeatThread = std::thread(&FsshttpClient::heartbeatLoop, this);
+    m_pollThread      = std::thread(&FsshttpClient::pollLoop, this);
+    flushPendingDeltas();
     return true;
 }
 
 void FsshttpClient::exitSession() {
     m_running = false;
     if (m_heartbeatThread.joinable()) m_heartbeatThread.join();
+    if (m_pollThread.joinable())      m_pollThread.join();
     if (m_session.state() == FsshttpSession::State::Joined) {
         auto xml = m_serializer.encodeExit(
             m_session.fileUrl(), m_session.clientId(), m_session.sessionToken());
@@ -82,7 +85,6 @@ void FsshttpClient::heartbeatLoop() {
         auto resp = post(xml);
         if (m_serializer.decodeRefreshResponse(resp)) {
             m_session.handleRefreshSuccess();
-            pollGetChanges();
         } else {
             m_session.handleRefreshFailure();
             if (m_session.state() == FsshttpSession::State::Disconnected) {
@@ -90,6 +92,22 @@ void FsshttpClient::heartbeatLoop() {
                 break;
             }
         }
+    }
+}
+
+void FsshttpClient::pollLoop() {
+    while (m_running) {
+        std::this_thread::sleep_for(std::chrono::seconds(5));
+        if (!m_running) break;
+        if (isJoined()) pollGetChanges();
+    }
+}
+
+void FsshttpClient::flushPendingDeltas() {
+    std::lock_guard<std::mutex> lock(m_deltaMutex);
+    while (!m_pendingDeltas.empty()) {
+        sendDeltaImmediate(m_pendingDeltas.front());
+        m_pendingDeltas.pop();
     }
 }
 
@@ -120,7 +138,15 @@ void FsshttpClient::pollGetChanges() {
 }
 
 void FsshttpClient::sendDelta(const std::string& deltaJson) {
-    if (!isJoined()) return;
+    if (!isJoined()) {
+        std::lock_guard<std::mutex> lock(m_deltaMutex);
+        m_pendingDeltas.push(deltaJson);
+        return;
+    }
+    sendDeltaImmediate(deltaJson);
+}
+
+void FsshttpClient::sendDeltaImmediate(const std::string& deltaJson) {
     std::vector<uint8_t> ooxml;
     if (m_document.isLoaded()) {
         // Parse paragraphIndex + content, apply to live document, send full XML.

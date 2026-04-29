@@ -4,14 +4,16 @@
 #include "OoxmlDocument.h"
 #include <string>
 #include <vector>
+#include <queue>
+#include <mutex>
 #include <cstdint>
 #include <functional>
 #include <thread>
 #include <atomic>
 
 // Top-level MS-FSSHTTP client.
-// Call joinSession() to enter co-authoring. Heartbeat runs on a background thread.
-// Set onRemoteDelta to receive incoming changes.
+// Call joinSession() to enter co-authoring. A 30s heartbeat and a 5s GetChanges
+// poll run on background threads. Set onRemoteDelta before calling joinSession().
 class FsshttpClient {
 public:
     FsshttpClient(const std::string& fileUrl,
@@ -22,14 +24,15 @@ public:
     bool joinSession();
     void exitSession();
 
-    // Load the local .docx before or after joinSession to enable full OOXML sync.
-    // If not called, sendDelta falls back to stub paragraph XML.
+    // Load the local .docx before joinSession to enable full OOXML sync.
+    // Falls back to stub paragraph XML if not called.
     void loadDocument(const std::string& localDocxPath);
 
-    // Called by IntegrationBridge when the user makes a local edit.
+    // Queues the delta if not joined; sends immediately when joined.
+    // Queued deltas are flushed automatically on successful re-join.
     void sendDelta(const std::string& deltaJson);
 
-    // Set before calling joinSession(). Called on the heartbeat thread.
+    // Set before calling joinSession(). Called on background threads.
     std::function<void(const std::string& deltaJson)> onRemoteDelta;
     std::function<void()> onSessionDropped;
 
@@ -42,14 +45,21 @@ private:
     std::function<std::string()> m_tokenProvider;
 
     std::thread       m_heartbeatThread;
+    std::thread       m_pollThread;
     std::atomic<bool> m_running{false};
+
+    // Deltas queued while session is not joined (network loss, pre-join).
+    std::queue<std::string> m_pendingDeltas;
+    std::mutex              m_deltaMutex;
 
     std::string post(const std::string& xml);
     std::string endpointUrl() const;
-    void        heartbeatLoop();
+    void        heartbeatLoop();  // 30s refresh cycle
+    void        pollLoop();       // 5s GetChanges cycle
     void        pollGetChanges();
+    void        flushPendingDeltas();
+    void        sendDeltaImmediate(const std::string& deltaJson);
 
-    // Fallback: build stub paragraph XML when m_document is not loaded.
     static std::vector<uint8_t> deltaToOoxmlStub(const std::string& deltaJson);
     static std::string ooxmlToDeltaJsonStub(const std::vector<uint8_t>& ooxml);
 };

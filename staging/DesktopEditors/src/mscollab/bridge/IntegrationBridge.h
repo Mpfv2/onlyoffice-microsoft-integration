@@ -13,8 +13,13 @@ class IntegrationBridge {
 public:
     IntegrationBridge();
 
-    // Called when user opens a file. If it's a OneDrive path, starts co-auth session.
-    void onDocumentOpened(const std::string& filePath);
+    // Called when user opens a file detected as a local OneDrive path.
+    // Resolves the SharePoint URL via Graph API, then joins a co-auth session.
+    void onDocumentOpened(const std::string& localFilePath);
+
+    // Called by the OneDrive toolbar dialog after downloading a temp file.
+    // webUrl is the SharePoint URL (for MS-FSSHTTP); localPath is the temp .docx file.
+    void openFromOneDrive(const std::string& webUrl, const std::string& localPath);
 
     // Called when user closes a document.
     void onDocumentClosed(const std::string& filePath);
@@ -36,4 +41,5 @@ private:
 
     bool        isOneDrivePath(const std::string& path) const;
     std::string resolveOneDriveUrl(const std::string& localPath) const;
+    void        startSession(const std::string& webUrl, const std::string& localPath);
 };

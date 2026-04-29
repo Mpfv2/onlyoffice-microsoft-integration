@@ -20,38 +20,36 @@ std::string IntegrationBridge::resolveOneDriveUrl(const std::string& localPath) 
     return localPath;
 }
 
-void IntegrationBridge::onDocumentOpened(const std::string& filePath) {
-    if (!isOneDrivePath(filePath)) return;
-
-    if (!m_auth.isAuthenticated()) {
-        if (!m_auth.authenticate()) {
-            std::cerr << "[MsCollab] Authentication failed — local only mode\n";
-            return;
-        }
-    }
-
-    std::string fileUrl  = resolveOneDriveUrl(filePath);
-    std::string clientId = "onlyoffice-" +
-        std::to_string(std::hash<std::string>{}(filePath));
-
+void IntegrationBridge::startSession(const std::string& webUrl,
+                                      const std::string& localPath) {
+    std::string clientId = "onlyoffice-" + std::to_string(std::hash<std::string>{}(webUrl));
     m_client = std::make_unique<FsshttpClient>(
-        fileUrl, clientId,
-        [this]() { return m_auth.accessToken(); });
-
-    m_client->onRemoteDelta = [this](const std::string& delta) {
-        if (sendToJs) sendToJs(delta);
-    };
-
-    m_client->onSessionDropped = []() {
-        std::cerr << "[MsCollab] Session dropped\n";
-    };
-
-    m_client->loadDocument(filePath);
-
+        webUrl, clientId, [this]() { return m_auth.accessToken(); });
+    m_client->onRemoteDelta = [this](const std::string& d) { if (sendToJs) sendToJs(d); };
+    m_client->onSessionDropped = []() { std::cerr << "[MsCollab] Session dropped\n"; };
+    if (!localPath.empty()) m_client->loadDocument(localPath);
     if (!m_client->joinSession()) {
         std::cerr << "[MsCollab] Failed to join coauthoring session\n";
         m_client.reset();
     }
+}
+
+void IntegrationBridge::onDocumentOpened(const std::string& filePath) {
+    if (!isOneDrivePath(filePath)) return;
+    if (!m_auth.isAuthenticated() && !m_auth.authenticate()) {
+        std::cerr << "[MsCollab] Authentication failed — local only mode\n";
+        return;
+    }
+    startSession(resolveOneDriveUrl(filePath), filePath);
+}
+
+void IntegrationBridge::openFromOneDrive(const std::string& webUrl,
+                                          const std::string& localPath) {
+    if (!m_auth.isAuthenticated() && !m_auth.authenticate()) {
+        std::cerr << "[MsCollab] Authentication failed — local only mode\n";
+        return;
+    }
+    startSession(webUrl, localPath);
 }
 
 void IntegrationBridge::onDocumentClosed(const std::string& /*filePath*/) {
