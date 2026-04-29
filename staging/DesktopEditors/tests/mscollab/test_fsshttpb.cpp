@@ -85,12 +85,40 @@ static void test_put_changes_non_empty() {
 }
 
 // ---------------------------------------------------------------------------
+// Test 4: extractOoxmlBlobs round-trip
+//
+// buildPutChanges wraps docxBytes inside FSSHTTPB ObjectGroupObjectData
+// (type 0x3C).  extractOoxmlBlobs should find and return those exact bytes.
+// ---------------------------------------------------------------------------
+static void test_extract_ooxml_blobs_roundtrip() {
+    // A small fake OOXML payload (not a real .docx, but bytes are what matters).
+    const std::string fakeXml =
+        "<w:document><w:body><w:p><w:r><w:t>Hello</w:t></w:r></w:p></w:body></w:document>";
+    const std::vector<uint8_t> docxBytes(fakeXml.begin(), fakeXml.end());
+
+    // Build the FSSHTTPB binary for PutChanges, then decode the base64 back to bytes.
+    std::string b64 = FsshttpCellSubRequest::buildPutChanges(docxBytes, "tok");
+    std::vector<uint8_t> fsshttpbBinary = FsshttpBinaryReader::fromBase64(b64);
+
+    assert(!fsshttpbBinary.empty() && "fromBase64 should produce bytes");
+
+    // extractOoxmlBlobs should find exactly one blob — our docxBytes.
+    auto blobs = FsshttpCellSubRequest::extractOoxmlBlobs(fsshttpbBinary);
+
+    assert(blobs.size() == 1 && "should extract exactly one OOXML blob");
+    assert(blobs[0] == docxBytes && "extracted blob should match original docxBytes");
+
+    std::printf("PASS: extractOoxmlBlobs_RoundTrip (blob size=%zu)\n", blobs[0].size());
+}
+
+// ---------------------------------------------------------------------------
 // main
 // ---------------------------------------------------------------------------
 int main() {
     test_uvarint();
     test_stream_header16();
     test_put_changes_non_empty();
+    test_extract_ooxml_blobs_roundtrip();
     std::printf("All tests passed.\n");
     return 0;
 }
