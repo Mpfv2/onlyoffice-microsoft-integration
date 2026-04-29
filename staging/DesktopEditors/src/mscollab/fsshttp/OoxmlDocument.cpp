@@ -3,6 +3,25 @@
 #include <algorithm>
 #include <cstring>
 
+static std::string xmlUnescape(const std::string& s) {
+    std::string out;
+    out.reserve(s.size());
+    size_t i = 0;
+    while (i < s.size()) {
+        if (s[i] == '&') {
+            if      (s.compare(i, 5, "&amp;")  == 0) { out += '&';  i += 5; }
+            else if (s.compare(i, 4, "&lt;")   == 0) { out += '<';  i += 4; }
+            else if (s.compare(i, 4, "&gt;")   == 0) { out += '>';  i += 4; }
+            else if (s.compare(i, 6, "&quot;") == 0) { out += '"';  i += 6; }
+            else if (s.compare(i, 6, "&apos;") == 0) { out += '\''; i += 6; }
+            else { out += s[i++]; }
+        } else {
+            out += s[i++];
+        }
+    }
+    return out;
+}
+
 static std::string xmlEscape(const std::string& s) {
     std::string out;
     out.reserve(s.size());
@@ -166,7 +185,7 @@ std::string OoxmlDocument::extractParaText(const std::string& para)
         size_t textEnd = para.find("</w:t>", textStart);
         if (textEnd == std::string::npos) break;
 
-        result += para.substr(textStart, textEnd - textStart);
+        result += xmlUnescape(para.substr(textStart, textEnd - textStart));
         pos = textEnd + 6; // length of "</w:t>"
     }
     return result;

@@ -35,9 +35,23 @@ MergeEngine::Delta IntegrationBridge::parseDelta(const std::string& j) {
     return d;
 }
 
+static std::string jsonEscape(const std::string& s) {
+    std::string out;
+    out.reserve(s.size());
+    for (char c : s) {
+        if      (c == '"')  out += "\\\"";
+        else if (c == '\\') out += "\\\\";
+        else if (c == '\n') out += "\\n";
+        else if (c == '\r') out += "\\r";
+        else if (c == '\t') out += "\\t";
+        else                out += c;
+    }
+    return out;
+}
+
 std::string IntegrationBridge::serializeDelta(const MergeEngine::Delta& d) {
     return "{\"paragraphIndex\":" + std::to_string(d.paragraphIndex) +
-           ",\"content\":\"" + d.content + "\"}";
+           ",\"content\":\"" + jsonEscape(d.content) + "\"}";
 }
 
 void IntegrationBridge::startSession(const std::string& webUrl,

@@ -114,6 +114,19 @@ TEST_F(OoxmlDocumentTest, IgnoresParagraphProperties) {
 }
 
 // ---------------------------------------------------------------------------
+// parseParagraphDeltas: XML entities are unescaped in returned text
+// ---------------------------------------------------------------------------
+TEST_F(OoxmlDocumentTest, UnescapesXmlEntitiesInText) {
+    const std::string xml =
+        "<w:p><w:r><w:t>a &amp; b &lt;tag&gt; &quot;quoted&quot;</w:t></w:r></w:p>";
+    std::vector<uint8_t> bytes(xml.begin(), xml.end());
+    auto deltas = OoxmlDocument::parseParagraphDeltas(bytes);
+
+    ASSERT_EQ(deltas.size(), 1u);
+    EXPECT_EQ(deltas[0].text, "a & b <tag> \"quoted\"");
+}
+
+// ---------------------------------------------------------------------------
 // parseCommentDeltas: returns empty for non-comment XML
 // ---------------------------------------------------------------------------
 TEST_F(OoxmlDocumentTest, ParseCommentDeltasEmptyForDocumentXml) {
