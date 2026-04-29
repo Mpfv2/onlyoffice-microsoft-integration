@@ -84,6 +84,12 @@ void IntegrationBridge::startSession(const std::string& webUrl,
         webUrl, clientId, [this]() { return m_auth.accessToken(); });
 
     m_client->onRemoteDelta = [this](const std::string& d) {
+        // Comment deltas carry their own structured JSON — bypass merge and
+        // forward directly so the JS shim can call asc_AddComment.
+        if (d.find("\"type\":\"comment\"") != std::string::npos) {
+            if (sendToJs) sendToJs(d);
+            return;
+        }
         auto remote = parseDelta(d);
         auto result = m_merge.merge(m_lastLocalDelta, remote);
         if (result.action == MergeEngine::Action::Discard) return;
