@@ -126,11 +126,15 @@ MergeResult merge(const Delta& local, const Delta& remote) const
 - Clone submodules on Arch Linux and run `staging/SETUP_INSTRUCTIONS.md`
 - Wire toolbar button into `CAscApplicationManager` (see the integration note)
 
-**Phase 2 — not started:**
-- FsshttpDelta binary encoding (FsshttpCellStorageData) for keystroke-level sync
-- OMML equation co-authoring
-- Comments/tracked changes sync
-- Excel / PowerPoint support
+**Phase 2 — in progress:**
+- ✅ FsshttpBinaryEncoder: MS-FSSHTTPB CompactUint, ExGUID, CellID, StreamObjectHeader (16/32-bit), base64
+- ✅ FsshttpCellSubRequest: buildPutChanges, buildGetChanges, parseGetChangesResponse
+- ✅ FsshttpSerializer: encodeCellPutChanges, encodeCellGetChanges, decodeCellSubResponse
+- ✅ FsshttpClient: sendDelta now sends OOXML via PutChanges; heartbeat polls GetChanges every 30s
+- 🔲 Full OOXML serialization (currently writes minimal paragraph XML; needs proper .docx structure)
+- 🔲 OMML equation co-authoring
+- 🔲 Comments/tracked changes sync
+- 🔲 Excel / PowerPoint support
 
 ## Key Constraints
 
