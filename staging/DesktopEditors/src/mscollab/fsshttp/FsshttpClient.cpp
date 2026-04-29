@@ -273,20 +273,39 @@ void FsshttpClient::sendDeltaImmediate(const std::string& deltaJson) {
     post(soapXml);
 }
 
-std::vector<uint8_t> FsshttpClient::deltaToOoxmlStub(const std::string& deltaJson) {
-    std::string content;
-    auto pos = deltaJson.find("\"content\":");
-    if (pos != std::string::npos) {
-        auto q1 = deltaJson.find('"', pos + 10);
-        if (q1 != std::string::npos) {
-            auto q2 = deltaJson.find('"', q1 + 1);
-            if (q2 != std::string::npos) content = deltaJson.substr(q1 + 1, q2 - q1 - 1);
-        }
+static std::string jsonEscapeStr(const std::string& s) {
+    std::string out;
+    for (char c : s) {
+        if      (c == '"')  out += "\\\"";
+        else if (c == '\\') out += "\\\\";
+        else if (c == '\n') out += "\\n";
+        else if (c == '\r') out += "\\r";
+        else if (c == '\t') out += "\\t";
+        else                out += c;
     }
+    return out;
+}
+
+static std::string xmlEscapeStr(const std::string& s) {
+    std::string out;
+    for (char c : s) {
+        if      (c == '<')  out += "&lt;";
+        else if (c == '>')  out += "&gt;";
+        else if (c == '&')  out += "&amp;";
+        else if (c == '"')  out += "&quot;";
+        else                out += c;
+    }
+    return out;
+}
+
+std::vector<uint8_t> FsshttpClient::deltaToOoxmlStub(const std::string& deltaJson) {
+    std::string content = jsonFieldStr(deltaJson, "content");
     std::string xml =
         "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
         "<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\">"
-        "<w:body><w:p><w:r><w:t>" + content + "</w:t></w:r></w:p></w:body>"
+        "<w:body><w:p><w:r><w:t xml:space=\"preserve\">" +
+        xmlEscapeStr(content) +
+        "</w:t></w:r></w:p></w:body>"
         "</w:document>";
     return std::vector<uint8_t>(xml.begin(), xml.end());
 }
@@ -296,6 +315,12 @@ std::string FsshttpClient::ooxmlToDeltaJsonStub(const std::vector<uint8_t>& ooxm
     std::string text;
     size_t pos = 0;
     while ((pos = xml.find("<w:t", pos)) != std::string::npos) {
+        // Make sure it's exactly <w:t not <w:tbl etc.
+        char next = (pos + 4 < xml.size()) ? xml[pos + 4] : 0;
+        if (next != '>' && next != ' ' && next != '\t' && next != '\n') {
+            pos += 4;
+            continue;
+        }
         auto gt = xml.find('>', pos);
         if (gt == std::string::npos) break;
         auto lt = xml.find("</w:t>", gt);
@@ -304,7 +329,7 @@ std::string FsshttpClient::ooxmlToDeltaJsonStub(const std::vector<uint8_t>& ooxm
         pos = lt + 6;
     }
     if (text.empty()) return {};
-    return "{\"paragraphIndex\":0,\"content\":\"" + text + "\"}";
+    return "{\"paragraphIndex\":0,\"content\":\"" + jsonEscapeStr(text) + "\"}";
 }
 
 bool FsshttpClient::isJoined() const {
