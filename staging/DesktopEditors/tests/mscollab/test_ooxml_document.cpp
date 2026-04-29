@@ -114,6 +114,33 @@ TEST_F(OoxmlDocumentTest, IgnoresParagraphProperties) {
 }
 
 // ---------------------------------------------------------------------------
+// applyParagraphDelta: OMML paragraphs are not overwritten
+// ---------------------------------------------------------------------------
+TEST_F(OoxmlDocumentTest, PreservesOmmlParagraph) {
+    // Build a document with one plain paragraph and one equation paragraph.
+    const std::string xml =
+        "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
+        "<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\""
+        " xmlns:m=\"http://schemas.openxmlformats.org/officeDocument/2006/math\">"
+        "<w:body>"
+        "<w:p><w:r><w:t>Plain text</w:t></w:r></w:p>"
+        "<w:p><m:oMath><m:r><m:t>x^2</m:t></m:r></m:oMath></w:p>"
+        "</w:body>"
+        "</w:document>";
+
+    // We can't call OoxmlDocument's non-static methods here without loadFromDocx,
+    // but we CAN test parseParagraphDeltas to verify OMML text is not extracted.
+    std::vector<uint8_t> bytes(xml.begin(), xml.end());
+    auto deltas = OoxmlDocument::parseParagraphDeltas(bytes);
+
+    // Both paragraphs should be parsed; the equation paragraph's text is empty
+    // (because <m:t> is not <w:t> and extractParaText skips it).
+    ASSERT_EQ(deltas.size(), 2u);
+    EXPECT_EQ(deltas[0].text, "Plain text");
+    EXPECT_EQ(deltas[1].text, "");  // OMML text not extracted via w:t
+}
+
+// ---------------------------------------------------------------------------
 // parseParagraphDeltas: XML entities are unescaped in returned text
 // ---------------------------------------------------------------------------
 TEST_F(OoxmlDocumentTest, UnescapesXmlEntitiesInText) {

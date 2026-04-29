@@ -133,6 +133,17 @@ void OoxmlDocument::applyParagraphDelta(int paragraphIndex, const std::string& t
 
     size_t paraStart = findNthParagraphStart(m_documentXml, paragraphIndex);
 
+    // Do not overwrite paragraphs containing OMML equations — we can't round-trip
+    // equation structure through a text-only delta.
+    if (paraStart != std::string::npos) {
+        size_t closeTag = m_documentXml.find("</w:p>", paraStart);
+        if (closeTag != std::string::npos) {
+            std::string existing = m_documentXml.substr(paraStart, closeTag - paraStart);
+            if (existing.find("<m:oMath") != std::string::npos)
+                return;
+        }
+    }
+
     if (paraStart == std::string::npos) {
         // paragraphIndex is beyond the current paragraph count — append before </w:body>
         size_t bodyEnd = m_documentXml.rfind("</w:body>");
