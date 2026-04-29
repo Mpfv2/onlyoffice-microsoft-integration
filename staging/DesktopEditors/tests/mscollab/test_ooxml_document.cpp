@@ -154,6 +154,56 @@ TEST_F(OoxmlDocumentTest, UnescapesXmlEntitiesInText) {
 }
 
 // ---------------------------------------------------------------------------
+// applyCommentDelta / serializeComments: round-trip a new comment
+// ---------------------------------------------------------------------------
+TEST_F(OoxmlDocumentTest, ApplyCommentDeltaCreatesWellFormedXml) {
+    OoxmlDocument doc;
+    doc.applyCommentDelta(1, "Alice", "2024-03-15T10:00:00Z", "Good point!");
+    auto bytes = doc.serializeComments();
+    EXPECT_FALSE(bytes.empty());
+
+    std::string xml(bytes.begin(), bytes.end());
+    EXPECT_NE(xml.find("<w:comments"), std::string::npos);
+    EXPECT_NE(xml.find("w:id=\"1\""), std::string::npos);
+    EXPECT_NE(xml.find("w:author=\"Alice\""), std::string::npos);
+    EXPECT_NE(xml.find("Good point!"), std::string::npos);
+}
+
+TEST_F(OoxmlDocumentTest, ApplyCommentDeltaUpserts) {
+    OoxmlDocument doc;
+    doc.applyCommentDelta(2, "Bob",   "2024-03-15T11:00:00Z", "First version");
+    doc.applyCommentDelta(2, "Bob",   "2024-03-15T11:05:00Z", "Updated version");
+    auto bytes = doc.serializeComments();
+    std::string xml(bytes.begin(), bytes.end());
+
+    // Only one <w:comment> with id=2 should remain
+    auto pos1 = xml.find("w:id=\"2\"");
+    ASSERT_NE(pos1, std::string::npos);
+    auto pos2 = xml.find("w:id=\"2\"", pos1 + 1);
+    EXPECT_EQ(pos2, std::string::npos);  // no second occurrence
+
+    EXPECT_NE(xml.find("Updated version"), std::string::npos);
+    EXPECT_EQ(xml.find("First version"), std::string::npos);
+}
+
+TEST_F(OoxmlDocumentTest, ApplyMultipleComments) {
+    OoxmlDocument doc;
+    doc.applyCommentDelta(1, "Alice", "", "Comment A");
+    doc.applyCommentDelta(2, "Bob",   "", "Comment B");
+    auto bytes = doc.serializeComments();
+    std::string xml(bytes.begin(), bytes.end());
+    EXPECT_NE(xml.find("Comment A"), std::string::npos);
+    EXPECT_NE(xml.find("Comment B"), std::string::npos);
+}
+
+TEST_F(OoxmlDocumentTest, SerializeCommentsEmptyWithoutApply) {
+    OoxmlDocument doc;
+    EXPECT_FALSE(doc.hasComments());
+    auto bytes = doc.serializeComments();
+    EXPECT_TRUE(bytes.empty());
+}
+
+// ---------------------------------------------------------------------------
 // parseCommentDeltas: returns empty for non-comment XML
 // ---------------------------------------------------------------------------
 TEST_F(OoxmlDocumentTest, ParseCommentDeltasEmptyForDocumentXml) {
