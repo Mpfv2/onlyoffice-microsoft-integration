@@ -1,0 +1,24 @@
+INCLUDEPATH += $$PWD
+
+HEADERS += \
+    $$PWD/auth/AuthModule.h \
+    $$PWD/auth/TokenStore.h \
+    $$PWD/fsshttp/FsshttpClient.h \
+    $$PWD/fsshttp/FsshttpSerializer.h \
+    $$PWD/fsshttp/FsshttpSession.h \
+    $$PWD/fsshttp/FsshttpDelta.h \
+    $$PWD/bridge/IntegrationBridge.h \
+    $$PWD/merge/MergeEngine.h
+
+SOURCES += \
+    $$PWD/auth/AuthModule.cpp \
+    $$PWD/auth/TokenStore.cpp \
+    $$PWD/fsshttp/FsshttpClient.cpp \
+    $$PWD/fsshttp/FsshttpSerializer.cpp \
+    $$PWD/fsshttp/FsshttpSession.cpp \
+    $$PWD/fsshttp/FsshttpDelta.cpp \
+    $$PWD/bridge/IntegrationBridge.cpp \
+    $$PWD/merge/MergeEngine.cpp
+
+CONFIG += link_pkgconfig
+PKGCONFIG += libcurl libxml-2.0 libsecret-1
