@@ -93,6 +93,11 @@ void FsshttpClient::heartbeatLoop() {
     }
 }
 
+void FsshttpClient::loadDocument(const std::string& localDocxPath) {
+    if (!m_document.loadFromDocx(localDocxPath))
+        std::cerr << "[MsCollab] OoxmlDocument: could not load " << localDocxPath << "\n";
+}
+
 void FsshttpClient::pollGetChanges() {
     auto xml = m_serializer.encodeCellGetChanges(
         m_session.fileUrl(), m_session.clientId(), m_session.sessionToken());
@@ -100,23 +105,50 @@ void FsshttpClient::pollGetChanges() {
     if (resp.empty()) return;
     auto cellResp = m_serializer.decodeCellSubResponse(resp);
     for (const auto& blob : cellResp.dataBlobs) {
-        std::string delta = ooxmlToDeltaJson(blob);
-        if (!delta.empty() && onRemoteDelta) onRemoteDelta(delta);
+        if (m_document.isLoaded()) {
+            auto deltas = OoxmlDocument::parseParagraphDeltas(blob);
+            for (const auto& d : deltas) {
+                std::string j = "{\"paragraphIndex\":" + std::to_string(d.index) +
+                                ",\"content\":\"" + d.text + "\"}";
+                if (onRemoteDelta) onRemoteDelta(j);
+            }
+        } else {
+            std::string delta = ooxmlToDeltaJsonStub(blob);
+            if (!delta.empty() && onRemoteDelta) onRemoteDelta(delta);
+        }
     }
 }
 
 void FsshttpClient::sendDelta(const std::string& deltaJson) {
     if (!isJoined()) return;
-    auto ooxml   = deltaToOoxml(deltaJson);
-    auto b64     = FsshttpCellSubRequest::buildPutChanges(ooxml, m_session.sessionToken());
-    auto xml     = m_serializer.encodeCellPutChanges(
+    std::vector<uint8_t> ooxml;
+    if (m_document.isLoaded()) {
+        // Parse paragraphIndex + content, apply to live document, send full XML.
+        int paraIdx = 0;
+        std::string content;
+        auto pi = deltaJson.find("\"paragraphIndex\":");
+        if (pi != std::string::npos) paraIdx = std::stoi(deltaJson.substr(pi + 17));
+        auto ci = deltaJson.find("\"content\":");
+        if (ci != std::string::npos) {
+            auto q1 = deltaJson.find('"', ci + 10);
+            if (q1 != std::string::npos) {
+                auto q2 = deltaJson.find('"', q1 + 1);
+                if (q2 != std::string::npos) content = deltaJson.substr(q1 + 1, q2 - q1 - 1);
+            }
+        }
+        m_document.applyParagraphDelta(paraIdx, content);
+        ooxml = m_document.serialize();
+    } else {
+        ooxml = deltaToOoxmlStub(deltaJson);
+    }
+    auto b64 = FsshttpCellSubRequest::buildPutChanges(ooxml, m_session.sessionToken());
+    auto soapXml = m_serializer.encodeCellPutChanges(
         m_session.fileUrl(), m_session.clientId(), m_session.sessionToken(),
         b64, static_cast<uint32_t>(ooxml.size()));
-    post(xml);  // response not checked for now — heartbeat will detect session drops
+    post(soapXml);
 }
 
-std::vector<uint8_t> FsshttpClient::deltaToOoxml(const std::string& deltaJson) {
-    // Extract "content" from {"paragraphIndex":N,"content":"text"}
+std::vector<uint8_t> FsshttpClient::deltaToOoxmlStub(const std::string& deltaJson) {
     std::string content;
     auto pos = deltaJson.find("\"content\":");
     if (pos != std::string::npos) {
@@ -134,7 +166,7 @@ std::vector<uint8_t> FsshttpClient::deltaToOoxml(const std::string& deltaJson) {
     return std::vector<uint8_t>(xml.begin(), xml.end());
 }
 
-std::string FsshttpClient::ooxmlToDeltaJson(const std::vector<uint8_t>& ooxml) {
+std::string FsshttpClient::ooxmlToDeltaJsonStub(const std::vector<uint8_t>& ooxml) {
     std::string xml(ooxml.begin(), ooxml.end());
     std::string text;
     size_t pos = 0;

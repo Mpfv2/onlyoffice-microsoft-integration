@@ -46,6 +46,8 @@ void IntegrationBridge::onDocumentOpened(const std::string& filePath) {
         std::cerr << "[MsCollab] Session dropped\n";
     };
 
+    m_client->loadDocument(filePath);
+
     if (!m_client->joinSession()) {
         std::cerr << "[MsCollab] Failed to join coauthoring session\n";
         m_client.reset();

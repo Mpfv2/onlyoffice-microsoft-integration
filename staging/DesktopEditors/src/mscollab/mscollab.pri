@@ -11,6 +11,7 @@ HEADERS += \
     $$PWD/fsshttp/FsshttpSerializer.h \
     $$PWD/fsshttp/FsshttpSession.h \
     $$PWD/fsshttp/FsshttpDelta.h \
+    $$PWD/fsshttp/OoxmlDocument.h \
     $$PWD/graph/GraphApiClient.h \
     $$PWD/ui/OneDriveDialog.h \
     $$PWD/bridge/IntegrationBridge.h \
@@ -25,10 +26,11 @@ SOURCES += \
     $$PWD/fsshttp/FsshttpSerializer.cpp \
     $$PWD/fsshttp/FsshttpSession.cpp \
     $$PWD/fsshttp/FsshttpDelta.cpp \
+    $$PWD/fsshttp/OoxmlDocument.cpp \
     $$PWD/graph/GraphApiClient.cpp \
     $$PWD/ui/OneDriveDialog.cpp \
     $$PWD/bridge/IntegrationBridge.cpp \
     $$PWD/merge/MergeEngine.cpp
 
 CONFIG += link_pkgconfig
-PKGCONFIG += libcurl libxml-2.0 libsecret-1
+PKGCONFIG += libcurl libxml-2.0 libsecret-1 libzip

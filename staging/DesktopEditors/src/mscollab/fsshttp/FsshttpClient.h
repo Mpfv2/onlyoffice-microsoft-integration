@@ -1,6 +1,7 @@
 #pragma once
 #include "FsshttpSession.h"
 #include "FsshttpSerializer.h"
+#include "OoxmlDocument.h"
 #include <string>
 #include <vector>
 #include <cstdint>
@@ -21,6 +22,10 @@ public:
     bool joinSession();
     void exitSession();
 
+    // Load the local .docx before or after joinSession to enable full OOXML sync.
+    // If not called, sendDelta falls back to stub paragraph XML.
+    void loadDocument(const std::string& localDocxPath);
+
     // Called by IntegrationBridge when the user makes a local edit.
     void sendDelta(const std::string& deltaJson);
 
@@ -33,6 +38,7 @@ public:
 private:
     FsshttpSession    m_session;
     FsshttpSerializer m_serializer;
+    OoxmlDocument     m_document;
     std::function<std::string()> m_tokenProvider;
 
     std::thread       m_heartbeatThread;
@@ -43,8 +49,7 @@ private:
     void        heartbeatLoop();
     void        pollGetChanges();
 
-    // Minimal OOXML paragraph for a deltaJson {paragraphIndex,content}.
-    static std::vector<uint8_t> deltaToOoxml(const std::string& deltaJson);
-    // Extract text from an OOXML blob and return it as a deltaJson.
-    static std::string ooxmlToDeltaJson(const std::vector<uint8_t>& ooxml);
+    // Fallback: build stub paragraph XML when m_document is not loaded.
+    static std::vector<uint8_t> deltaToOoxmlStub(const std::string& deltaJson);
+    static std::string ooxmlToDeltaJsonStub(const std::vector<uint8_t>& ooxml);
 };
