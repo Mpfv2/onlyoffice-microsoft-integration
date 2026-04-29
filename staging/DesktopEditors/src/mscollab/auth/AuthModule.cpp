@@ -62,7 +62,7 @@ std::string AuthModule::buildAuthUrl(const std::string& verifier, int port) cons
            "?client_id=" + m_clientId +
            "&response_type=code"
            "&redirect_uri=" + redirect +
-           "&scope=Files.ReadWrite%20offline_access"
+           "&scope=Files.ReadWrite%20Sites.ReadWrite.All%20offline_access"
            "&code_challenge=" + codeChallenge(verifier) +
            "&code_challenge_method=S256";
 }
@@ -157,7 +157,7 @@ bool AuthModule::refreshTokens() {
         "client_id=" + m_clientId +
         "&grant_type=refresh_token"
         "&refresh_token=" + rt +
-        "&scope=Files.ReadWrite%20offline_access";
+        "&scope=Files.ReadWrite%20Sites.ReadWrite.All%20offline_access";
     std::string response;
     CURL* curl = curl_easy_init();
     curl_easy_setopt(curl, CURLOPT_URL,
