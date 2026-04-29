@@ -119,15 +119,18 @@ std::string FsshttpSerializer::encodeCellPutChanges(
 std::string FsshttpSerializer::encodeCellGetChanges(
         const std::string& fileUrl,
         const std::string& clientId,
-        const std::string& sessionToken) const {
-    // Minimal GetChanges payload — just the SubRequest header; the FSSHTTPB binary
-    // encodes a Request+SubRequest with type=GetChanges.
+        const std::string& sessionToken,
+        const std::string& knowledgeB64) const {
+    std::string knowledgeAttr;
+    if (!knowledgeB64.empty())
+        knowledgeAttr = " CurrentKnowledge=\"" + knowledgeB64 + "\"";
+
     std::string sub =
         "<SubRequest Type=\"Cell\" SubRequestToken=\"2\" "
                     "ClientId=\"" + xmlEscape(clientId) + "\" "
                     "SessionToken=\"" + xmlEscape(sessionToken) + "\">"
         "<SubRequestData PartitionID=\"00000001-0000-0000-0000-000000000000\" "
-                        "BinaryDataSize=\"0\"/>"
+                        "BinaryDataSize=\"0\"" + knowledgeAttr + "/>"
         "</SubRequest>";
     return wrapEnvelope(fileUrl, sub);
 }
@@ -137,6 +140,9 @@ CellResponse FsshttpSerializer::decodeCellSubResponse(const std::string& xml) co
     auto code = xmlAttrValue(xml, "ErrorCode");
     r.success = (code == "Success" || code.empty());
     if (!r.success) return r;
+
+    // Extract knowledge token so the next GetChanges is a true delta fetch.
+    r.currentKnowledgeB64 = xmlAttrValue(xml, "CurrentKnowledge");
 
     // Extract base64-encoded FSSHTTPB blobs from Cell SubResponse BinaryData elements.
     auto pos = xml.find("BinaryData");

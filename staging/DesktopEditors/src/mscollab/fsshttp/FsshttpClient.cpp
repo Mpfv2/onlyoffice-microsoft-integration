@@ -57,6 +57,10 @@ bool FsshttpClient::joinSession() {
     auto result = m_serializer.decodeJoinResponse(resp);
     m_session.handleJoinResponse(result.success, result.sessionToken);
     if (!result.success) return false;
+    {
+        std::lock_guard<std::mutex> lk(m_knowledgeMutex);
+        m_knowledgeB64.clear();  // fresh session — start from root knowledge
+    }
     m_running = true;
     m_heartbeatThread = std::thread(&FsshttpClient::heartbeatLoop, this);
     m_pollThread      = std::thread(&FsshttpClient::pollLoop, this);
@@ -101,6 +105,10 @@ void FsshttpClient::heartbeatLoop() {
                     auto jr = m_serializer.decodeJoinResponse(joinResp);
                     m_session.handleJoinResponse(jr.success, jr.sessionToken);
                     if (jr.success) {
+                        {
+                            std::lock_guard<std::mutex> lk(m_knowledgeMutex);
+                            m_knowledgeB64.clear();
+                        }
                         flushPendingDeltas();
                         rejoined = true;
                         break;
@@ -137,11 +145,24 @@ void FsshttpClient::loadDocument(const std::string& localDocxPath) {
 }
 
 void FsshttpClient::pollGetChanges() {
+    std::string knowledge;
+    {
+        std::lock_guard<std::mutex> lk(m_knowledgeMutex);
+        knowledge = m_knowledgeB64;
+    }
+
     auto xml = m_serializer.encodeCellGetChanges(
-        m_session.fileUrl(), m_session.clientId(), m_session.sessionToken());
+        m_session.fileUrl(), m_session.clientId(), m_session.sessionToken(), knowledge);
     auto resp = post(xml);
     if (resp.empty()) return;
     auto cellResp = m_serializer.decodeCellSubResponse(resp);
+
+    // Update the stored knowledge token so the next poll fetches only new changes.
+    if (!cellResp.currentKnowledgeB64.empty()) {
+        std::lock_guard<std::mutex> lk(m_knowledgeMutex);
+        m_knowledgeB64 = cellResp.currentKnowledgeB64;
+    }
+
     for (const auto& blob : cellResp.dataBlobs) {
         if (m_document.isLoaded()) {
             auto deltas = OoxmlDocument::parseParagraphDeltas(blob);

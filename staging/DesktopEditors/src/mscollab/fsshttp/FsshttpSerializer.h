@@ -18,6 +18,9 @@ struct CellResponse {
     bool success = false;
     // Each entry is a raw decoded data blob (OOXML bytes) from a GetChanges response.
     std::vector<std::vector<uint8_t>> dataBlobs;
+    // Opaque base64 knowledge token from the server.
+    // Pass back to the next GetChanges request so the server only returns new changes.
+    std::string currentKnowledgeB64;
 };
 
 // Encodes MS-FSSHTTP SubRequests as SOAP/XML and decodes SubResponses.
@@ -48,9 +51,11 @@ public:
                                      const std::string& base64Payload,
                                      uint32_t           payloadBytes) const;
 
+    // knowledgeB64: from the previous CellResponse::currentKnowledgeB64; empty for first call.
     std::string encodeCellGetChanges(const std::string& fileUrl,
                                      const std::string& clientId,
-                                     const std::string& sessionToken) const;
+                                     const std::string& sessionToken,
+                                     const std::string& knowledgeB64 = {}) const;
 
     CellResponse decodeCellSubResponse(const std::string& xml) const;
 

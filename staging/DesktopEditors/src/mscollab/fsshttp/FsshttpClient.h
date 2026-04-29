@@ -52,6 +52,11 @@ private:
     std::queue<std::string> m_pendingDeltas;
     std::mutex              m_deltaMutex;
 
+    // Last knowledge token from the server; used in subsequent GetChanges calls
+    // so the server only returns changes made after the last poll.
+    std::string m_knowledgeB64;
+    std::mutex  m_knowledgeMutex;
+
     std::string post(const std::string& xml);
     std::string endpointUrl() const;
     void        heartbeatLoop();  // 30s refresh cycle

@@ -139,7 +139,7 @@ MergeResult merge(const Delta& local, const Delta& remote) const
 - ✅ JS shim: paragraph-level apply via asc_SetSelectionRange + asc_ReplaceText; TRACKED change support
 - ✅ OoxmlDocument unit tests (5 GTest tests, no real .docx required)
 - ✅ GraphApiClient: uploadFile() — PUT /root:/{path}:/content; called from onDocumentClosed as safety-net sync
-- 🔲 GetChanges "knowledge" tracking (currently fetches all changes, not delta-since-last)
+- ✅ GetChanges knowledge tracking: `CurrentKnowledge` attribute threaded through FsshttpSerializer ↔ FsshttpClient; knowledge cleared on (re)join
 - 🔲 OMML equation co-authoring
 - 🔲 Comments/tracked changes sync
 - 🔲 Excel / PowerPoint support
