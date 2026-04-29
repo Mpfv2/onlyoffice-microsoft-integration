@@ -13,7 +13,7 @@ OnlyOffice is open-source but has no native Microsoft 365 co-authoring. This pro
 
 ## Status
 
-**Phase 1 — in progress.** All core components are written and staged:
+**Phase 1 — all staging files complete.** Set up on Arch Linux to build:
 
 | Component | Status |
 |-----------|--------|
@@ -24,8 +24,8 @@ OnlyOffice is open-source but has no native Microsoft 365 co-authoring. This pro
 | Conflict merge engine | ✅ Written |
 | sdkjs JS bridge shim | ✅ Written |
 | Integration bridge | ✅ Written |
-| Graph API URL resolver | 🔲 Stub — needs implementation |
-| "Open from OneDrive" UI button | 🔲 Planned |
+| Graph API URL resolver | ✅ Written |
+| "Open from OneDrive" UI dialog | ✅ Written |
 
 **Phase 2** (after Phase 1 is working):
 - `FsshttpCellStorageData` binary delta encoding (true keystroke-level sync)

@@ -114,12 +114,17 @@ MergeResult merge(const Delta& local, const Delta& remote) const
 
 ## Phase Status
 
-**Phase 1 — in progress:**
-- ✅ TokenStore, AuthModule, FsshttpSerializer, FsshttpSession, FsshttpClient, MergeEngine, mscollab-shim.js, IntegrationBridge, config.h
-- 🔲 GraphApiClient (Graph API URL resolver + file listing)
-- 🔲 OneDriveDialog (Qt file picker)
-- 🔲 IntegrationBridge updated to use GraphApiClient for URL resolution
-- 🔲 Toolbar button wiring (integration note for CAscApplicationManager)
+**Phase 1 — COMPLETE (all staging files written):**
+- ✅ TokenStore, AuthModule, FsshttpSerializer, FsshttpSession, FsshttpClient, MergeEngine, mscollab-shim.js, config.h
+- ✅ GraphApiClient (`graph/GraphApiClient.h/.cpp`) — resolves local OneDrive paths → SharePoint webUrls via Graph API; lists folder contents
+- ✅ OneDriveDialog (`ui/OneDriveDialog.h/.cpp`) — Qt QDialog with lazy-loading OneDrive tree, downloads selected .docx to temp dir
+- ✅ IntegrationBridge — wired to GraphApiClient for URL resolution; exposes `authModule()` for toolbar action
+- ✅ Toolbar wiring guide (`ui/OneDriveToolbarAction_integration_note.md`)
+
+**Remaining before Arch Linux build:**
+- Register Azure app at portal.azure.com, paste client ID into `config.h`
+- Clone submodules on Arch Linux and run `staging/SETUP_INSTRUCTIONS.md`
+- Wire toolbar button into `CAscApplicationManager` (see the integration note)
 
 **Phase 2 — not started:**
 - FsshttpDelta binary encoding (FsshttpCellStorageData) for keystroke-level sync
