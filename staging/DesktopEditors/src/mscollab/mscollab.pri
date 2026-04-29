@@ -10,7 +10,6 @@ HEADERS += \
     $$PWD/fsshttp/FsshttpClient.h \
     $$PWD/fsshttp/FsshttpSerializer.h \
     $$PWD/fsshttp/FsshttpSession.h \
-    $$PWD/fsshttp/FsshttpDelta.h \
     $$PWD/fsshttp/OoxmlDocument.h \
     $$PWD/graph/GraphApiClient.h \
     $$PWD/ui/OneDriveDialog.h \
@@ -25,7 +24,6 @@ SOURCES += \
     $$PWD/fsshttp/FsshttpClient.cpp \
     $$PWD/fsshttp/FsshttpSerializer.cpp \
     $$PWD/fsshttp/FsshttpSession.cpp \
-    $$PWD/fsshttp/FsshttpDelta.cpp \
     $$PWD/fsshttp/OoxmlDocument.cpp \
     $$PWD/graph/GraphApiClient.cpp \
     $$PWD/ui/OneDriveDialog.cpp \
