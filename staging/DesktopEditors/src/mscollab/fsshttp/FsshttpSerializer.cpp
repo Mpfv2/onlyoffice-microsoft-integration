@@ -1,7 +1,6 @@
 #include "FsshttpSerializer.h"
 #include "FsshttpBinaryEncoder.h"
-#include <libxml/parser.h>
-#include <libxml/xpath.h>
+#include "FsshttpCellSubRequest.h"
 #include <sstream>
 #include <cstdint>
 
@@ -145,15 +144,20 @@ CellResponse FsshttpSerializer::decodeCellSubResponse(const std::string& xml) co
     // Extract knowledge token so the next GetChanges is a true delta fetch.
     r.currentKnowledgeB64 = xmlAttrValue(xml, "CurrentKnowledge");
 
-    // Extract base64-encoded FSSHTTPB blobs from Cell SubResponse BinaryData elements.
-    auto pos = xml.find("BinaryData");
+    // Extract OOXML content from Cell SubResponse BinaryData elements.
+    // Each Value attribute is a base64-encoded FSSHTTPB binary; walk it to
+    // find ObjectGroupObjectData (type 0x3C) payloads that contain OOXML bytes.
+    auto pos = xml.find("<BinaryData ");
     while (pos != std::string::npos) {
         std::string b64 = xmlAttrValue(xml.substr(pos), "Value");
         if (!b64.empty()) {
-            auto blob = FsshttpBinaryReader::fromBase64(b64);
-            if (!blob.empty()) r.dataBlobs.push_back(std::move(blob));
+            auto fsshttpbBytes = FsshttpBinaryReader::fromBase64(b64);
+            if (!fsshttpbBytes.empty()) {
+                for (auto& blob : FsshttpCellSubRequest::extractOoxmlBlobs(fsshttpbBytes))
+                    r.dataBlobs.push_back(std::move(blob));
+            }
         }
-        pos = xml.find("BinaryData", pos + 10);
+        pos = xml.find("<BinaryData ", pos + 12);
     }
     return r;
 }

@@ -249,11 +249,45 @@ static std::string extractBase64FromXml(const std::string& xml) {
 }
 
 std::vector<std::vector<uint8_t>>
+FsshttpCellSubRequest::extractOoxmlBlobs(const std::vector<uint8_t>& raw) {
+    std::vector<std::vector<uint8_t>> blobs;
+    try {
+        FsshttpBinaryReader reader(raw);
+        while (!reader.eof()) {
+            FsshttpBinaryReader::StreamHeader hdr;
+            if (!reader.readStreamHeader(hdr)) break;
+
+            if (hdr.type == SOT_OBJ_GROUP_OBJECT_DATA && !hdr.compound && hdr.length > 0) {
+                // Body: uvarint(length) + raw OOXML bytes
+                size_t bodyStart = reader.pos();
+                uint64_t dataLen = reader.readUvarint();
+                if (dataLen > 0 && reader.remaining() >= dataLen) {
+                    std::vector<uint8_t> blob(dataLen);
+                    reader.readBytes(blob.data(), static_cast<size_t>(dataLen));
+                    blobs.push_back(std::move(blob));
+                }
+                size_t consumed = reader.pos() - bodyStart;
+                if (consumed < hdr.length)
+                    reader.skip(hdr.length - consumed);
+            } else if (!hdr.compound) {
+                reader.skip(hdr.length);
+            }
+            // Compound headers: children follow immediately, keep iterating.
+        }
+    } catch (...) {}
+
+    if (blobs.empty()) {
+        // Fallback: return entire buffer — OOXML may be embedded directly.
+        blobs.push_back(raw);
+    }
+    return blobs;
+}
+
+std::vector<std::vector<uint8_t>>
 FsshttpCellSubRequest::parseGetChangesResponse(const std::string& soapXml) {
     std::string b64 = extractBase64FromXml(soapXml);
     if (b64.empty()) return {};
 
-    // Strip whitespace from the blob string before decoding
     std::string cleanB64;
     cleanB64.reserve(b64.size());
     for (char c : b64) {
@@ -265,42 +299,5 @@ FsshttpCellSubRequest::parseGetChangesResponse(const std::string& soapXml) {
     std::vector<uint8_t> raw = FsshttpBinaryReader::fromBase64(cleanB64);
     if (raw.empty()) return {};
 
-    // Walk stream objects looking for type 0x3C (ObjectGroupObjectData).
-    std::vector<std::vector<uint8_t>> blobs;
-    try {
-        FsshttpBinaryReader reader(raw);
-        while (!reader.eof()) {
-            FsshttpBinaryReader::StreamHeader hdr;
-            if (!reader.readStreamHeader(hdr)) break;
-
-            if (hdr.type == SOT_OBJ_GROUP_OBJECT_DATA && !hdr.compound && hdr.length > 0) {
-                // Body: uvarint(length) + raw bytes
-                size_t bodyStart = reader.pos();
-                uint64_t dataLen = reader.readUvarint();
-                if (dataLen > 0 && reader.remaining() >= dataLen) {
-                    std::vector<uint8_t> blob(dataLen);
-                    reader.readBytes(blob.data(), static_cast<size_t>(dataLen));
-                    blobs.push_back(std::move(blob));
-                }
-                // Skip any remaining body bytes we didn't consume
-                size_t consumed = reader.pos() - bodyStart;
-                if (consumed < hdr.length) {
-                    reader.skip(hdr.length - consumed);
-                }
-            } else if (!hdr.compound) {
-                // Non-compound: skip body
-                reader.skip(hdr.length);
-            }
-            // For compound headers we don't skip — we recurse by continuing
-            // to iterate (the children follow immediately).
-        }
-    } catch (...) {
-        // Parsing errors: return whatever we collected so far, or fall back.
-    }
-
-    if (blobs.empty()) {
-        // Fallback: return entire decoded buffer as one delta blob.
-        blobs.push_back(std::move(raw));
-    }
-    return blobs;
+    return extractOoxmlBlobs(raw);
 }

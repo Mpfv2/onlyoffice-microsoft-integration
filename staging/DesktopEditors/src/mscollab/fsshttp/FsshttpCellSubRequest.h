@@ -25,4 +25,11 @@ struct FsshttpCellSubRequest {
     // Returns empty vector on error or if no new changes.
     static std::vector<std::vector<uint8_t>> parseGetChangesResponse(
         const std::string& soapXml);
+
+    // Walks a raw FSSHTTPB binary buffer and returns the body bytes of every
+    // ObjectGroupObjectData (type 0x3C) element found.  Falls back to returning
+    // the entire buffer as one element if no type-0x3C objects are present
+    // (compatibility with servers that embed OOXML differently).
+    static std::vector<std::vector<uint8_t>> extractOoxmlBlobs(
+        const std::vector<uint8_t>& fsshttpbBinary);
 };
