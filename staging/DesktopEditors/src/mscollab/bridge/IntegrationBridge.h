@@ -1,12 +1,13 @@
 #pragma once
 #include "../auth/AuthModule.h"
 #include "../fsshttp/FsshttpClient.h"
+#include "../graph/GraphApiClient.h"
 #include "../merge/MergeEngine.h"
 #include <string>
 #include <memory>
 #include <functional>
 
-// Owns the FsshttpClient and AuthModule.
+// Owns the FsshttpClient, AuthModule, and GraphApiClient.
 // Connects OnlyOffice document events to the MS-FSSHTTP protocol layer.
 class IntegrationBridge {
 public:
@@ -24,8 +25,12 @@ public:
     // Set by CAscApplicationManager to push incoming changes into sdkjs.
     std::function<void(const std::string& deltaJson)> sendToJs;
 
+    // Exposed for toolbar action to construct OneDriveDialog with a token provider.
+    AuthModule& authModule() { return m_auth; }
+
 private:
     AuthModule                     m_auth;
+    GraphApiClient                 m_graph;
     std::unique_ptr<FsshttpClient> m_client;
     MergeEngine                    m_merge;
 

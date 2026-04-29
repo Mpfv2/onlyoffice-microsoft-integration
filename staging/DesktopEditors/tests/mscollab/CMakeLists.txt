@@ -8,6 +8,7 @@ pkg_check_modules(LIBCURL REQUIRED libcurl)
 
 include_directories(
     ${CMAKE_SOURCE_DIR}/../../src
+    ${CMAKE_SOURCE_DIR}/../../src/mscollab
     ${LIBSECRET_INCLUDE_DIRS}
     ${LIBCURL_INCLUDE_DIRS}
 )
@@ -18,11 +19,13 @@ add_executable(mscollab_tests
     test_fsshttp_serializer.cpp
     test_fsshttp_session.cpp
     test_merge.cpp
+    test_graph_api_client.cpp
     ../../src/mscollab/auth/TokenStore.cpp
     ../../src/mscollab/auth/AuthModule.cpp
     ../../src/mscollab/fsshttp/FsshttpSerializer.cpp
     ../../src/mscollab/fsshttp/FsshttpSession.cpp
     ../../src/mscollab/merge/MergeEngine.cpp
+    ../../src/mscollab/graph/GraphApiClient.cpp
 )
 
 target_link_libraries(mscollab_tests

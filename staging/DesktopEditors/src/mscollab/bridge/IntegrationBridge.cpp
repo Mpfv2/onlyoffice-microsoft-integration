@@ -3,17 +3,20 @@
 #include <iostream>
 
 IntegrationBridge::IntegrationBridge()
-    : m_auth(MsCollabConfig::TENANT, MsCollabConfig::CLIENT_ID) {}
+    : m_auth(MsCollabConfig::TENANT, MsCollabConfig::CLIENT_ID)
+    , m_graph([this]() { return m_auth.accessToken(); }) {}
 
 bool IntegrationBridge::isOneDrivePath(const std::string& path) const {
     return path.find("OneDrive") != std::string::npos ||
            path.find("sharepoint.com") != std::string::npos;
 }
 
-// Returns the path directly for now.
-// TODO (Phase 1 completion): resolve via Graph API GET /me/drive/root:/path
-// to get the item's webUrl for the MS-FSSHTTP endpoint.
 std::string IntegrationBridge::resolveOneDriveUrl(const std::string& localPath) const {
+    std::string webUrl = m_graph.resolveWebUrl(localPath, MsCollabConfig::ONEDRIVE_FOLDER);
+    if (!webUrl.empty()) return webUrl;
+    // If Graph API lookup fails, fall back to local path (session join will fail but
+    // the auth/merge layers remain intact for when connectivity is restored).
+    std::cerr << "[MsCollab] Graph resolveWebUrl failed, using local path as fallback\n";
     return localPath;
 }
 

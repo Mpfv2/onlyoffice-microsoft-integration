@@ -1,5 +1,7 @@
 INCLUDEPATH += $$PWD
 
+QT += widgets
+
 HEADERS += \
     $$PWD/auth/AuthModule.h \
     $$PWD/auth/TokenStore.h \
@@ -7,6 +9,8 @@ HEADERS += \
     $$PWD/fsshttp/FsshttpSerializer.h \
     $$PWD/fsshttp/FsshttpSession.h \
     $$PWD/fsshttp/FsshttpDelta.h \
+    $$PWD/graph/GraphApiClient.h \
+    $$PWD/ui/OneDriveDialog.h \
     $$PWD/bridge/IntegrationBridge.h \
     $$PWD/merge/MergeEngine.h
 
@@ -17,6 +21,8 @@ SOURCES += \
     $$PWD/fsshttp/FsshttpSerializer.cpp \
     $$PWD/fsshttp/FsshttpSession.cpp \
     $$PWD/fsshttp/FsshttpDelta.cpp \
+    $$PWD/graph/GraphApiClient.cpp \
+    $$PWD/ui/OneDriveDialog.cpp \
     $$PWD/bridge/IntegrationBridge.cpp \
     $$PWD/merge/MergeEngine.cpp
 
