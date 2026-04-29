@@ -202,15 +202,32 @@ void FsshttpClient::sendDelta(const std::string& deltaJson) {
     sendDeltaImmediate(deltaJson);
 }
 
-// Returns the value of a JSON string field from a JSON object literal.
+// Returns the value of a JSON string field, handling \" and \\ escapes.
 static std::string jsonFieldStr(const std::string& json, const std::string& key) {
     auto pos = json.find("\"" + key + "\":");
     if (pos == std::string::npos) return {};
+    // Skip to the opening quote of the value
     auto q1 = json.find('"', pos + key.size() + 3);
     if (q1 == std::string::npos) return {};
-    auto q2 = json.find('"', q1 + 1);
-    if (q2 == std::string::npos) return {};
-    return json.substr(q1 + 1, q2 - q1 - 1);
+    ++q1;  // skip the opening '"'
+    std::string out;
+    for (size_t i = q1; i < json.size(); ++i) {
+        char c = json[i];
+        if (c == '\\' && i + 1 < json.size()) {
+            char nc = json[++i];
+            if      (nc == '"')  out += '"';
+            else if (nc == '\\') out += '\\';
+            else if (nc == 'n')  out += '\n';
+            else if (nc == 'r')  out += '\r';
+            else if (nc == 't')  out += '\t';
+            else                 out += nc;
+        } else if (c == '"') {
+            break;  // end of string
+        } else {
+            out += c;
+        }
+    }
+    return out;
 }
 
 static int jsonFieldInt(const std::string& json, const std::string& key) {
@@ -242,18 +259,8 @@ void FsshttpClient::sendDeltaImmediate(const std::string& deltaJson) {
     // Paragraph delta: {paragraphIndex:N, content:"..."}
     std::vector<uint8_t> ooxml;
     if (m_document.isLoaded()) {
-        int paraIdx = 0;
-        std::string content;
-        auto pi = deltaJson.find("\"paragraphIndex\":");
-        if (pi != std::string::npos) paraIdx = std::stoi(deltaJson.substr(pi + 17));
-        auto ci = deltaJson.find("\"content\":");
-        if (ci != std::string::npos) {
-            auto q1 = deltaJson.find('"', ci + 10);
-            if (q1 != std::string::npos) {
-                auto q2 = deltaJson.find('"', q1 + 1);
-                if (q2 != std::string::npos) content = deltaJson.substr(q1 + 1, q2 - q1 - 1);
-            }
-        }
+        int paraIdx = jsonFieldInt(deltaJson, "paragraphIndex");
+        std::string content = jsonFieldStr(deltaJson, "content");
         m_document.applyParagraphDelta(paraIdx, content);
         ooxml = m_document.serialize();
     } else {

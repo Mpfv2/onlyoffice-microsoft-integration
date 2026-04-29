@@ -20,17 +20,39 @@ std::string IntegrationBridge::resolveOneDriveUrl(const std::string& localPath) 
     return localPath;
 }
 
+// Read a JSON string value starting after the opening quote, handling escapes.
+static std::string readJsonString(const std::string& j, size_t start) {
+    std::string out;
+    for (size_t i = start; i < j.size(); ++i) {
+        char c = j[i];
+        if (c == '\\' && i + 1 < j.size()) {
+            char nc = j[++i];
+            if      (nc == '"')  out += '"';
+            else if (nc == '\\') out += '\\';
+            else if (nc == 'n')  out += '\n';
+            else if (nc == 'r')  out += '\r';
+            else if (nc == 't')  out += '\t';
+            else                 out += nc;
+        } else if (c == '"') {
+            break;
+        } else {
+            out += c;
+        }
+    }
+    return out;
+}
+
 MergeEngine::Delta IntegrationBridge::parseDelta(const std::string& j) {
     MergeEngine::Delta d;
     auto pi = j.find("\"paragraphIndex\":");
-    if (pi != std::string::npos) d.paragraphIndex = std::stoi(j.substr(pi + 17));
+    if (pi != std::string::npos) {
+        try { d.paragraphIndex = std::stoi(j.substr(pi + 17)); } catch (...) {}
+    }
     auto ci = j.find("\"content\":");
     if (ci != std::string::npos) {
         auto q1 = j.find('"', ci + 10);
-        if (q1 != std::string::npos) {
-            auto q2 = j.find('"', q1 + 1);
-            if (q2 != std::string::npos) d.content = j.substr(q1 + 1, q2 - q1 - 1);
-        }
+        if (q1 != std::string::npos)
+            d.content = readJsonString(j, q1 + 1);
     }
     return d;
 }
