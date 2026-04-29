@@ -139,7 +139,10 @@ void IntegrationBridge::onDocumentClosed(const std::string& /*filePath*/) {
 }
 
 void IntegrationBridge::onOutgoingChange(const std::string& deltaJson) {
-    m_lastLocalDelta = parseDelta(deltaJson);
+    // Only track paragraph deltas for merge comparison — comment deltas have no
+    // paragraphIndex and would poison m_lastLocalDelta with a default {0,""}.
+    if (deltaJson.find("\"type\":\"comment\"") == std::string::npos)
+        m_lastLocalDelta = parseDelta(deltaJson);
     if (!m_client) return;
     m_client->sendDelta(deltaJson);  // queued internally if not yet joined
 }
