@@ -59,6 +59,20 @@ bool OoxmlDocument::loadFromDocx(const std::string& docxPath)
     m_documentXml.resize(static_cast<size_t>(sb.size));
     zip_fread(zf, m_documentXml.data(), sb.size);
     zip_fclose(zf);
+
+    // Also load word/comments.xml if present (optional — not an error if absent).
+    zip_int64_t cIdx = zip_name_locate(za, "word/comments.xml", 0);
+    if (cIdx >= 0) {
+        zip_stat_t csb{};
+        zip_stat_index(za, cIdx, 0, &csb);
+        zip_file_t* czf = zip_fopen_index(za, cIdx, 0);
+        if (czf) {
+            m_commentsXml.resize(static_cast<size_t>(csb.size));
+            zip_fread(czf, m_commentsXml.data(), csb.size);
+            zip_fclose(czf);
+        }
+    }
+
     zip_close(za);
     return true;
 }
