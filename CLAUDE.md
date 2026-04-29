@@ -140,9 +140,8 @@ MergeResult merge(const Delta& local, const Delta& remote) const
 - ✅ OoxmlDocument unit tests (5 GTest tests, no real .docx required)
 - ✅ GraphApiClient: uploadFile() — PUT /root:/{path}:/content; called from onDocumentClosed as safety-net sync
 - ✅ GetChanges knowledge tracking: `CurrentKnowledge` attribute threaded through FsshttpSerializer ↔ FsshttpClient; knowledge cleared on (re)join
-- ✅ Comments sync: OoxmlDocument::parseCommentDeltas; FsshttpClient routes comment blobs; JS shim applies via asc_AddComment
+- ✅ Comments sync (bidirectional): parse/apply incoming comments.xml blobs; outgoing via asc_onAddComment → applyCommentDelta → PutChanges
 - 🔲 OMML equation co-authoring
-- 🔲 outgoing comment sync (currently only receives comments, does not send)
 - 🔲 Excel / PowerPoint support
 
 ## Key Constraints

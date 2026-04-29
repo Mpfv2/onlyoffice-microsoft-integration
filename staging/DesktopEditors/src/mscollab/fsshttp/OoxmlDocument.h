@@ -48,8 +48,20 @@ public:
     static std::vector<CommentDelta> parseCommentDeltas(
         const std::vector<uint8_t>& commentXmlBytes);
 
+    // Add or replace a comment in the in-memory comments XML.
+    // Creates the comments document if it hasn't been initialised yet.
+    void applyCommentDelta(int id, const std::string& author,
+                           const std::string& date, const std::string& text);
+
+    // Serialise the current word/comments.xml as bytes.
+    // Returns empty vector if no comments have been applied.
+    std::vector<uint8_t> serializeComments() const;
+
+    bool hasComments() const { return !m_commentsXml.empty(); }
+
 private:
     std::string m_documentXml;
+    std::string m_commentsXml;  // word/comments.xml; empty until first applyCommentDelta
 
     // Extract text from all <w:t> children of a <w:p> block.
     static std::string extractParaText(const std::string& para);

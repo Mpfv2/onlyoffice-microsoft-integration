@@ -105,22 +105,41 @@
         }
     };
 
-    // Hook into sdkjs document-ready event to register the outgoing-change listener.
+    // Hook into sdkjs document-ready event to register outgoing-change listeners.
     // "asc_onDocumentContentReady" fires after the document is fully loaded.
     document.addEventListener('asc_onDocumentContentReady', function () {
-        if (!window.asc_docs_api) return;
-        window.asc_docs_api.asc_registerCallback(
-            'asc_onDocumentChanged',
-            function (data) {
-                // Convert sdkjs change event to {paragraphIndex, content} format.
-                // data.para is the 0-based paragraph index; data.text is the new content.
-                // If the sdkjs format differs, adapt here.
-                var delta = {
-                    paragraphIndex: (data && typeof data.para === 'number') ? data.para : 0,
-                    content:        (data && typeof data.text === 'string') ? data.text : ''
-                };
-                window.MsCollab.onLocalChange(delta);
-            }
-        );
+        var api = window.asc_docs_api;
+        if (!api) return;
+
+        // Paragraph changes
+        api.asc_registerCallback('asc_onDocumentChanged', function (data) {
+            var delta = {
+                paragraphIndex: (data && typeof data.para === 'number') ? data.para : 0,
+                content:        (data && typeof data.text === 'string') ? data.text : ''
+            };
+            window.MsCollab.onLocalChange(delta);
+        });
+
+        // Comment additions
+        if (typeof api.asc_registerCallback === 'function') {
+            api.asc_registerCallback('asc_onAddComment', function (comment) {
+                try {
+                    var delta = {
+                        type:      'comment',
+                        commentId: (comment && typeof comment.get_Id === 'function')
+                                       ? (comment.get_Id() | 0) : 0,
+                        author:    (comment && typeof comment.get_Author === 'function')
+                                       ? (comment.get_Author() || '') : '',
+                        date:      (comment && typeof comment.get_Time === 'function')
+                                       ? (comment.get_Time() || '') : '',
+                        text:      (comment && typeof comment.get_Text === 'function')
+                                       ? (comment.get_Text() || '') : ''
+                    };
+                    window.MsCollab.onLocalChange(delta);
+                } catch (e) {
+                    console.error('[MsCollab] asc_onAddComment handler error:', e);
+                }
+            });
+        }
     });
 }());

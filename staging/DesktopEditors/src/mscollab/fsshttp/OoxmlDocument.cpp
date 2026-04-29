@@ -248,6 +248,61 @@ static std::string xmlAttr(const std::string& tagContent, const std::string& att
     return tagContent.substr(pos, end - pos);
 }
 
+// ---------------------------------------------------------------------------
+// applyCommentDelta
+// ---------------------------------------------------------------------------
+void OoxmlDocument::applyCommentDelta(int id, const std::string& author,
+                                       const std::string& date, const std::string& text)
+{
+    const std::string ns =
+        "xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"";
+
+    // Initialise the document skeleton on first use.
+    if (m_commentsXml.empty()) {
+        m_commentsXml =
+            "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
+            "<w:comments " + ns + ">"
+            "</w:comments>";
+    }
+
+    // Build the new <w:comment> element.
+    std::string entry =
+        "<w:comment w:id=\"" + std::to_string(id) + "\""
+        " w:author=\"" + xmlEscape(author) + "\""
+        " w:date=\"" + xmlEscape(date) + "\">"
+        "<w:p><w:r><w:t xml:space=\"preserve\">" + xmlEscape(text) + "</w:t></w:r></w:p>"
+        "</w:comment>";
+
+    // Remove an existing entry with the same id, then insert before </w:comments>.
+    const std::string idAttr = "w:id=\"" + std::to_string(id) + "\"";
+    auto existStart = m_commentsXml.find("<w:comment " + idAttr);
+    if (existStart == std::string::npos)
+        existStart = m_commentsXml.find("<w:comment w:id=\"" + std::to_string(id) + "\"");
+    if (existStart != std::string::npos) {
+        auto existEnd = m_commentsXml.find("</w:comment>", existStart);
+        if (existEnd != std::string::npos)
+            m_commentsXml.erase(existStart, (existEnd + 12) - existStart);
+    }
+
+    auto closeTag = m_commentsXml.rfind("</w:comments>");
+    if (closeTag != std::string::npos)
+        m_commentsXml.insert(closeTag, entry);
+    else
+        m_commentsXml += entry;
+}
+
+// ---------------------------------------------------------------------------
+// serializeComments
+// ---------------------------------------------------------------------------
+std::vector<uint8_t> OoxmlDocument::serializeComments() const
+{
+    if (m_commentsXml.empty()) return {};
+    return std::vector<uint8_t>(m_commentsXml.begin(), m_commentsXml.end());
+}
+
+// ---------------------------------------------------------------------------
+// parseCommentDeltas  (static)
+// ---------------------------------------------------------------------------
 std::vector<OoxmlDocument::CommentDelta> OoxmlDocument::parseCommentDeltas(
     const std::vector<uint8_t>& commentXmlBytes)
 {

@@ -202,10 +202,46 @@ void FsshttpClient::sendDelta(const std::string& deltaJson) {
     sendDeltaImmediate(deltaJson);
 }
 
+// Returns the value of a JSON string field from a JSON object literal.
+static std::string jsonFieldStr(const std::string& json, const std::string& key) {
+    auto pos = json.find("\"" + key + "\":");
+    if (pos == std::string::npos) return {};
+    auto q1 = json.find('"', pos + key.size() + 3);
+    if (q1 == std::string::npos) return {};
+    auto q2 = json.find('"', q1 + 1);
+    if (q2 == std::string::npos) return {};
+    return json.substr(q1 + 1, q2 - q1 - 1);
+}
+
+static int jsonFieldInt(const std::string& json, const std::string& key) {
+    auto pos = json.find("\"" + key + "\":");
+    if (pos == std::string::npos) return 0;
+    pos += key.size() + 3;
+    while (pos < json.size() && (json[pos] == ' ' || json[pos] == '\t')) ++pos;
+    try { return std::stoi(json.substr(pos)); } catch (...) { return 0; }
+}
+
 void FsshttpClient::sendDeltaImmediate(const std::string& deltaJson) {
+    // Comment delta: {type:"comment", commentId:N, author:"...", date:"...", text:"..."}
+    if (deltaJson.find("\"type\":\"comment\"") != std::string::npos) {
+        int id        = jsonFieldInt(deltaJson, "commentId");
+        std::string author = jsonFieldStr(deltaJson, "author");
+        std::string date   = jsonFieldStr(deltaJson, "date");
+        std::string text   = jsonFieldStr(deltaJson, "text");
+        m_document.applyCommentDelta(id, author, date, text);
+        auto ooxml = m_document.serializeComments();
+        if (ooxml.empty()) return;
+        auto b64 = FsshttpCellSubRequest::buildPutChanges(ooxml, m_session.sessionToken());
+        auto soapXml = m_serializer.encodeCellPutChanges(
+            m_session.fileUrl(), m_session.clientId(), m_session.sessionToken(),
+            b64, static_cast<uint32_t>(ooxml.size()));
+        post(soapXml);
+        return;
+    }
+
+    // Paragraph delta: {paragraphIndex:N, content:"..."}
     std::vector<uint8_t> ooxml;
     if (m_document.isLoaded()) {
-        // Parse paragraphIndex + content, apply to live document, send full XML.
         int paraIdx = 0;
         std::string content;
         auto pi = deltaJson.find("\"paragraphIndex\":");
