@@ -164,6 +164,21 @@ void FsshttpClient::pollGetChanges() {
     }
 
     for (const auto& blob : cellResp.dataBlobs) {
+        // Try comments part first (has <w:comments> root).
+        auto comments = OoxmlDocument::parseCommentDeltas(blob);
+        if (!comments.empty()) {
+            for (const auto& c : comments) {
+                std::string j = "{\"type\":\"comment\""
+                                ",\"commentId\":"  + std::to_string(c.id) +
+                                ",\"author\":\"" + c.author + "\""
+                                ",\"date\":\"" + c.date + "\""
+                                ",\"text\":\"" + c.text + "\"}";
+                if (onRemoteDelta) onRemoteDelta(j);
+            }
+            continue;
+        }
+
+        // Fall through to paragraph parsing (document.xml blobs).
         if (m_document.isLoaded()) {
             auto deltas = OoxmlDocument::parseParagraphDeltas(blob);
             for (const auto& d : deltas) {

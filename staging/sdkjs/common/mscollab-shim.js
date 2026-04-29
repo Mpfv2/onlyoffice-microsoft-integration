@@ -41,6 +41,28 @@
         }
     }
 
+    // ---------------------------------------------------------------------------
+    // applyRemoteComment: inserts or updates a comment from a remote co-author.
+    // Uses the OnlyOffice Collaboration API if available.
+    // ---------------------------------------------------------------------------
+    function applyRemoteComment(delta) {
+        var api = window.asc_docs_api;
+        if (!api) return;
+        try {
+            // asc_AddComment accepts a comment descriptor object.
+            // The exact API shape depends on the sdkjs version; fall back silently.
+            if (typeof api.asc_AddComment === 'function') {
+                var comment = new Asc.asc_CComment();
+                if (comment.put_Text)   comment.put_Text(delta.text   || '');
+                if (comment.put_Author) comment.put_Author(delta.author || '');
+                if (comment.put_Time)   comment.put_Time(delta.date   || '');
+                api.asc_AddComment(comment);
+            }
+        } catch (e) {
+            console.error('[MsCollab] applyRemoteComment error:', e);
+        }
+    }
+
     window.MsCollab = {
         // Called by sdkjs when the user makes a local edit.
         // data: {paragraphIndex: N, content: "text"} or sdkjs change event
@@ -52,12 +74,21 @@
         },
 
         // Called from C++ IntegrationBridge via the native→JS bridge.
-        // deltaJson: JSON string "{paragraphIndex:N, content:\"text\"}"
-        // If content starts with "TRACKED:" the change is applied as a tracked change.
+        // deltaJson: JSON string for a paragraph change or a comment addition.
+        //
+        // Paragraph delta:  {paragraphIndex:N, content:"text"}
+        //   If content starts with "TRACKED:" the change is applied as a tracked change.
+        //
+        // Comment delta:  {type:"comment", commentId:N, author:"...", date:"...", text:"..."}
         applyRemoteChange: function (deltaJson) {
             try {
                 var delta = typeof deltaJson === 'string'
                     ? JSON.parse(deltaJson) : deltaJson;
+
+                if (delta.type === 'comment') {
+                    applyRemoteComment(delta);
+                    return;
+                }
 
                 if (typeof delta.paragraphIndex !== 'number') return;
 

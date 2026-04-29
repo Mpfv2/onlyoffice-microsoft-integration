@@ -112,3 +112,56 @@ TEST_F(OoxmlDocumentTest, IgnoresParagraphProperties) {
     ASSERT_EQ(deltas.size(), 1u);
     EXPECT_EQ(deltas[0].text, "Centered");
 }
+
+// ---------------------------------------------------------------------------
+// parseCommentDeltas: returns empty for non-comment XML
+// ---------------------------------------------------------------------------
+TEST_F(OoxmlDocumentTest, ParseCommentDeltasEmptyForDocumentXml) {
+    std::vector<uint8_t> bytes(MINIMAL_XML.begin(), MINIMAL_XML.end());
+    auto comments = OoxmlDocument::parseCommentDeltas(bytes);
+    EXPECT_TRUE(comments.empty());
+}
+
+// ---------------------------------------------------------------------------
+// parseCommentDeltas: extracts single comment
+// ---------------------------------------------------------------------------
+TEST_F(OoxmlDocumentTest, ParseCommentDeltasSingleComment) {
+    const std::string xml =
+        "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
+        "<w:comments xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\">"
+        "<w:comment w:id=\"1\" w:author=\"Alice\" w:date=\"2024-03-15T10:00:00Z\">"
+        "<w:p><w:r><w:t>Great point!</w:t></w:r></w:p>"
+        "</w:comment>"
+        "</w:comments>";
+    std::vector<uint8_t> bytes(xml.begin(), xml.end());
+    auto comments = OoxmlDocument::parseCommentDeltas(bytes);
+
+    ASSERT_EQ(comments.size(), 1u);
+    EXPECT_EQ(comments[0].id,     1);
+    EXPECT_EQ(comments[0].author, "Alice");
+    EXPECT_EQ(comments[0].date,   "2024-03-15T10:00:00Z");
+    EXPECT_EQ(comments[0].text,   "Great point!");
+}
+
+// ---------------------------------------------------------------------------
+// parseCommentDeltas: extracts multiple comments
+// ---------------------------------------------------------------------------
+TEST_F(OoxmlDocumentTest, ParseCommentDeltasMultipleComments) {
+    const std::string xml =
+        "<w:comments xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\">"
+        "<w:comment w:id=\"1\" w:author=\"Alice\" w:date=\"\">"
+        "<w:p><w:r><w:t>First</w:t></w:r></w:p>"
+        "</w:comment>"
+        "<w:comment w:id=\"2\" w:author=\"Bob\" w:date=\"\">"
+        "<w:p><w:r><w:t>Second</w:t></w:r></w:p>"
+        "</w:comment>"
+        "</w:comments>";
+    std::vector<uint8_t> bytes(xml.begin(), xml.end());
+    auto comments = OoxmlDocument::parseCommentDeltas(bytes);
+
+    ASSERT_EQ(comments.size(), 2u);
+    EXPECT_EQ(comments[0].author, "Alice");
+    EXPECT_EQ(comments[0].text,   "First");
+    EXPECT_EQ(comments[1].author, "Bob");
+    EXPECT_EQ(comments[1].text,   "Second");
+}

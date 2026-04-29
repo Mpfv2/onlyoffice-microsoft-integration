@@ -221,3 +221,77 @@ std::vector<OoxmlDocument::ParagraphDelta> OoxmlDocument::parseParagraphDeltas(
 
     return deltas;
 }
+
+// ---------------------------------------------------------------------------
+// parseCommentDeltas  (static)
+// ---------------------------------------------------------------------------
+// Parses a word/comments.xml blob. Each <w:comment> element is extracted into
+// a CommentDelta. Returns empty vector if the blob is not a comments part.
+//
+// Expected structure:
+//   <w:comments ...>
+//     <w:comment w:id="1" w:author="Alice" w:date="2024-01-01T00:00:00Z">
+//       <w:p><w:r><w:t>Comment text here</w:t></w:r></w:p>
+//     </w:comment>
+//   </w:comments>
+// ---------------------------------------------------------------------------
+
+// Extract an XML attribute value from an opening tag string.
+// tagContent: the content between '<' and '>' of the tag.
+static std::string xmlAttr(const std::string& tagContent, const std::string& attr) {
+    const std::string search = attr + "=\"";
+    auto pos = tagContent.find(search);
+    if (pos == std::string::npos) return {};
+    pos += search.size();
+    auto end = tagContent.find('"', pos);
+    if (end == std::string::npos) return {};
+    return tagContent.substr(pos, end - pos);
+}
+
+std::vector<OoxmlDocument::CommentDelta> OoxmlDocument::parseCommentDeltas(
+    const std::vector<uint8_t>& commentXmlBytes)
+{
+    const std::string xml(reinterpret_cast<const char*>(commentXmlBytes.data()),
+                          commentXmlBytes.size());
+
+    // Quick check: must contain the comments root element
+    if (xml.find("<w:comments") == std::string::npos) return {};
+
+    std::vector<CommentDelta> deltas;
+    size_t pos = 0;
+
+    while (pos < xml.size()) {
+        // Find the next <w:comment opening tag
+        size_t tagStart = xml.find("<w:comment ", pos);
+        if (tagStart == std::string::npos) break;
+
+        // Find closing '>' of the opening tag
+        size_t tagEnd = xml.find('>', tagStart);
+        if (tagEnd == std::string::npos) break;
+        bool selfClosing = (tagEnd > 0 && xml[tagEnd - 1] == '/');
+
+        std::string openTag = xml.substr(tagStart + 1, tagEnd - tagStart - 1);
+
+        CommentDelta d;
+        std::string idStr = xmlAttr(openTag, "w:id");
+        d.id     = idStr.empty() ? -1 : std::stoi(idStr);
+        d.author = xmlAttr(openTag, "w:author");
+        d.date   = xmlAttr(openTag, "w:date");
+
+        if (selfClosing) {
+            pos = tagEnd + 1;
+        } else {
+            // Find the closing </w:comment>
+            size_t closeTag = xml.find("</w:comment>", tagEnd);
+            if (closeTag == std::string::npos) break;
+            // Extract the body and collect all <w:t> text
+            std::string body = xml.substr(tagEnd + 1, closeTag - tagEnd - 1);
+            d.text = extractParaText(body);  // reuse paragraph text extractor
+            pos = closeTag + 12; // length of "</w:comment>"
+        }
+
+        deltas.push_back(std::move(d));
+    }
+
+    return deltas;
+}

@@ -29,11 +29,24 @@ public:
         std::string text;
     };
 
+    struct CommentDelta {
+        int         id;
+        std::string author;
+        std::string date;    // ISO 8601 from w:date attribute, may be empty
+        std::string text;    // concatenated <w:t> content from the comment body
+    };
+
     // Parse OOXML bytes received from a GetChanges DataElement blob.
     // Extracts text from each <w:p> element and returns one ParagraphDelta per paragraph.
     // Empty paragraphs are included with empty text (so the caller can blank them out).
     static std::vector<ParagraphDelta> parseParagraphDeltas(
         const std::vector<uint8_t>& ooxmlBytes);
+
+    // Parse a word/comments.xml blob.
+    // Returns one CommentDelta per <w:comment> element.
+    // Returns empty vector if the blob does not look like a comments part.
+    static std::vector<CommentDelta> parseCommentDeltas(
+        const std::vector<uint8_t>& commentXmlBytes);
 
 private:
     std::string m_documentXml;
