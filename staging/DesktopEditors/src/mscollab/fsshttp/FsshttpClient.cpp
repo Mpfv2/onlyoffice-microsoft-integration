@@ -88,8 +88,28 @@ void FsshttpClient::heartbeatLoop() {
         } else {
             m_session.handleRefreshFailure();
             if (m_session.state() == FsshttpSession::State::Disconnected) {
-                if (onSessionDropped) onSessionDropped();
-                break;
+                // Exponential backoff rejoin: 5s, 10s, 20s before giving up.
+                bool rejoined = false;
+                for (int attempt = 0; attempt < 3 && m_running; ++attempt) {
+                    std::this_thread::sleep_for(
+                        std::chrono::seconds(5 * (1 << attempt)));
+                    if (!m_running) break;
+                    m_session.setJoining();
+                    auto joinXml = m_serializer.encodeJoin(
+                        m_session.fileUrl(), m_session.clientId(), "");
+                    auto joinResp = post(joinXml);
+                    auto jr = m_serializer.decodeJoinResponse(joinResp);
+                    m_session.handleJoinResponse(jr.success, jr.sessionToken);
+                    if (jr.success) {
+                        flushPendingDeltas();
+                        rejoined = true;
+                        break;
+                    }
+                }
+                if (!rejoined) {
+                    if (onSessionDropped) onSessionDropped();
+                    break;
+                }
             }
         }
     }
