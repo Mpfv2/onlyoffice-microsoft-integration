@@ -1,12 +1,9 @@
 #include "IntegrationBridge.h"
+#include "../config.h"
 #include <iostream>
 
-// Placeholder — replaced in Task 10 when config.h is created
-static const std::string PLACEHOLDER_CLIENT_ID = "REPLACE_WITH_AZURE_CLIENT_ID";
-static const std::string TENANT = "techcollege.dk";
-
 IntegrationBridge::IntegrationBridge()
-    : m_auth(TENANT, PLACEHOLDER_CLIENT_ID) {}
+    : m_auth(MsCollabConfig::TENANT, MsCollabConfig::CLIENT_ID) {}
 
 bool IntegrationBridge::isOneDrivePath(const std::string& path) const {
     return path.find("OneDrive") != std::string::npos ||
