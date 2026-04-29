@@ -21,4 +21,8 @@ TEST(AuthModule, BuildsAuthUrlWithTenant) {
     EXPECT_NE(url.find("techcollege.dk"), std::string::npos);
     EXPECT_NE(url.find("test-client-id"), std::string::npos);
     EXPECT_NE(url.find("9999"), std::string::npos);
+    // Must request Sites.ReadWrite.All for FSSHTTP SharePoint access
+    EXPECT_NE(url.find("Sites.ReadWrite.All"), std::string::npos);
+    EXPECT_NE(url.find("Files.ReadWrite"), std::string::npos);
+    EXPECT_NE(url.find("offline_access"), std::string::npos);
 }
