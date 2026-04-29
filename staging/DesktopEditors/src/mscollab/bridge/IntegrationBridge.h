@@ -38,8 +38,14 @@ private:
     GraphApiClient                 m_graph;
     std::unique_ptr<FsshttpClient> m_client;
     MergeEngine                    m_merge;
+    MergeEngine::Delta             m_lastLocalDelta;  // for conflict detection
 
     bool        isOneDrivePath(const std::string& path) const;
     std::string resolveOneDriveUrl(const std::string& localPath) const;
     void        startSession(const std::string& webUrl, const std::string& localPath);
+
+    // Parse paragraphIndex+content from a deltaJson string.
+    static MergeEngine::Delta parseDelta(const std::string& deltaJson);
+    // Serialize a MergeEngine::Delta to deltaJson.
+    static std::string serializeDelta(const MergeEngine::Delta& d);
 };

@@ -20,12 +20,41 @@ std::string IntegrationBridge::resolveOneDriveUrl(const std::string& localPath) 
     return localPath;
 }
 
+MergeEngine::Delta IntegrationBridge::parseDelta(const std::string& j) {
+    MergeEngine::Delta d;
+    auto pi = j.find("\"paragraphIndex\":");
+    if (pi != std::string::npos) d.paragraphIndex = std::stoi(j.substr(pi + 17));
+    auto ci = j.find("\"content\":");
+    if (ci != std::string::npos) {
+        auto q1 = j.find('"', ci + 10);
+        if (q1 != std::string::npos) {
+            auto q2 = j.find('"', q1 + 1);
+            if (q2 != std::string::npos) d.content = j.substr(q1 + 1, q2 - q1 - 1);
+        }
+    }
+    return d;
+}
+
+std::string IntegrationBridge::serializeDelta(const MergeEngine::Delta& d) {
+    return "{\"paragraphIndex\":" + std::to_string(d.paragraphIndex) +
+           ",\"content\":\"" + d.content + "\"}";
+}
+
 void IntegrationBridge::startSession(const std::string& webUrl,
                                       const std::string& localPath) {
     std::string clientId = "onlyoffice-" + std::to_string(std::hash<std::string>{}(webUrl));
     m_client = std::make_unique<FsshttpClient>(
         webUrl, clientId, [this]() { return m_auth.accessToken(); });
-    m_client->onRemoteDelta = [this](const std::string& d) { if (sendToJs) sendToJs(d); };
+
+    m_client->onRemoteDelta = [this](const std::string& d) {
+        auto remote = parseDelta(d);
+        auto result = m_merge.merge(m_lastLocalDelta, remote);
+        if (result.action == MergeEngine::Action::Discard) return;
+        if (result.action == MergeEngine::Action::TrackedChange)
+            result.content = "TRACKED:" + result.content;
+        if (sendToJs) sendToJs(serializeDelta({result.paragraphIndex, result.content}));
+    };
+
     m_client->onSessionDropped = []() { std::cerr << "[MsCollab] Session dropped\n"; };
     if (!localPath.empty()) m_client->loadDocument(localPath);
     if (!m_client->joinSession()) {
@@ -60,6 +89,7 @@ void IntegrationBridge::onDocumentClosed(const std::string& /*filePath*/) {
 }
 
 void IntegrationBridge::onOutgoingChange(const std::string& deltaJson) {
-    if (!m_client || !m_client->isJoined()) return;
-    m_client->sendDelta(deltaJson);
+    m_lastLocalDelta = parseDelta(deltaJson);
+    if (!m_client) return;
+    m_client->sendDelta(deltaJson);  // queued internally if not yet joined
 }

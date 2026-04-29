@@ -3,6 +3,22 @@
 #include <algorithm>
 #include <cstring>
 
+static std::string xmlEscape(const std::string& s) {
+    std::string out;
+    out.reserve(s.size());
+    for (char c : s) {
+        switch (c) {
+            case '<':  out += "&lt;";   break;
+            case '>':  out += "&gt;";   break;
+            case '&':  out += "&amp;";  break;
+            case '"':  out += "&quot;"; break;
+            case '\'': out += "&apos;"; break;
+            default:   out += c;        break;
+        }
+    }
+    return out;
+}
+
 // ---------------------------------------------------------------------------
 // loadFromDocx
 // ---------------------------------------------------------------------------
@@ -80,7 +96,7 @@ static int countParagraphs(const std::string& xml)
 void OoxmlDocument::applyParagraphDelta(int paragraphIndex, const std::string& text)
 {
     const std::string newPara =
-        "<w:p><w:r><w:rPr/><w:t xml:space=\"preserve\">" + text + "</w:t></w:r></w:p>";
+        "<w:p><w:r><w:rPr/><w:t xml:space=\"preserve\">" + xmlEscape(text) + "</w:t></w:r></w:p>";
 
     size_t paraStart = findNthParagraphStart(m_documentXml, paragraphIndex);
 
