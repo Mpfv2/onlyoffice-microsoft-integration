@@ -2,6 +2,8 @@
 #include "FsshttpSession.h"
 #include "FsshttpSerializer.h"
 #include <string>
+#include <vector>
+#include <cstdint>
 #include <functional>
 #include <thread>
 #include <atomic>
@@ -39,4 +41,10 @@ private:
     std::string post(const std::string& xml);
     std::string endpointUrl() const;
     void        heartbeatLoop();
+    void        pollGetChanges();
+
+    // Minimal OOXML paragraph for a deltaJson {paragraphIndex,content}.
+    static std::vector<uint8_t> deltaToOoxml(const std::string& deltaJson);
+    // Extract text from an OOXML blob and return it as a deltaJson.
+    static std::string ooxmlToDeltaJson(const std::vector<uint8_t>& ooxml);
 };

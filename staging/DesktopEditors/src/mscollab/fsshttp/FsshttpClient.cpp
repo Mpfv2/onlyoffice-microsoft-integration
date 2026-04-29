@@ -1,7 +1,9 @@
 #include "FsshttpClient.h"
+#include "FsshttpCellSubRequest.h"
 #include <curl/curl.h>
 #include <chrono>
 #include <thread>
+#include <iostream>
 
 static size_t curlWrite(void* ptr, size_t size, size_t nmemb, std::string* s) {
     s->append((char*)ptr, size * nmemb);
@@ -80,6 +82,7 @@ void FsshttpClient::heartbeatLoop() {
         auto resp = post(xml);
         if (m_serializer.decodeRefreshResponse(resp)) {
             m_session.handleRefreshSuccess();
+            pollGetChanges();
         } else {
             m_session.handleRefreshFailure();
             if (m_session.state() == FsshttpSession::State::Disconnected) {
@@ -90,8 +93,61 @@ void FsshttpClient::heartbeatLoop() {
     }
 }
 
-void FsshttpClient::sendDelta(const std::string& /*deltaJson*/) {
-    // CellSubRequest (FsshttpCellStorageData) binary encoding — Phase 2 (see Known Gaps)
+void FsshttpClient::pollGetChanges() {
+    auto xml = m_serializer.encodeCellGetChanges(
+        m_session.fileUrl(), m_session.clientId(), m_session.sessionToken());
+    auto resp = post(xml);
+    if (resp.empty()) return;
+    auto cellResp = m_serializer.decodeCellSubResponse(resp);
+    for (const auto& blob : cellResp.dataBlobs) {
+        std::string delta = ooxmlToDeltaJson(blob);
+        if (!delta.empty() && onRemoteDelta) onRemoteDelta(delta);
+    }
+}
+
+void FsshttpClient::sendDelta(const std::string& deltaJson) {
+    if (!isJoined()) return;
+    auto ooxml   = deltaToOoxml(deltaJson);
+    auto b64     = FsshttpCellSubRequest::buildPutChanges(ooxml, m_session.sessionToken());
+    auto xml     = m_serializer.encodeCellPutChanges(
+        m_session.fileUrl(), m_session.clientId(), m_session.sessionToken(),
+        b64, static_cast<uint32_t>(ooxml.size()));
+    post(xml);  // response not checked for now — heartbeat will detect session drops
+}
+
+std::vector<uint8_t> FsshttpClient::deltaToOoxml(const std::string& deltaJson) {
+    // Extract "content" from {"paragraphIndex":N,"content":"text"}
+    std::string content;
+    auto pos = deltaJson.find("\"content\":");
+    if (pos != std::string::npos) {
+        auto q1 = deltaJson.find('"', pos + 10);
+        if (q1 != std::string::npos) {
+            auto q2 = deltaJson.find('"', q1 + 1);
+            if (q2 != std::string::npos) content = deltaJson.substr(q1 + 1, q2 - q1 - 1);
+        }
+    }
+    std::string xml =
+        "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
+        "<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\">"
+        "<w:body><w:p><w:r><w:t>" + content + "</w:t></w:r></w:p></w:body>"
+        "</w:document>";
+    return std::vector<uint8_t>(xml.begin(), xml.end());
+}
+
+std::string FsshttpClient::ooxmlToDeltaJson(const std::vector<uint8_t>& ooxml) {
+    std::string xml(ooxml.begin(), ooxml.end());
+    std::string text;
+    size_t pos = 0;
+    while ((pos = xml.find("<w:t", pos)) != std::string::npos) {
+        auto gt = xml.find('>', pos);
+        if (gt == std::string::npos) break;
+        auto lt = xml.find("</w:t>", gt);
+        if (lt == std::string::npos) break;
+        text += xml.substr(gt + 1, lt - gt - 1);
+        pos = lt + 6;
+    }
+    if (text.empty()) return {};
+    return "{\"paragraphIndex\":0,\"content\":\"" + text + "\"}";
 }
 
 bool FsshttpClient::isJoined() const {

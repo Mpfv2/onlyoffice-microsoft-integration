@@ -1,7 +1,9 @@
 #include "FsshttpSerializer.h"
+#include "FsshttpBinaryEncoder.h"
 #include <libxml/parser.h>
 #include <libxml/xpath.h>
 #include <sstream>
+#include <cstdint>
 
 static std::string xmlEscape(const std::string& s) {
     std::string out;
@@ -94,4 +96,57 @@ JoinResponse FsshttpSerializer::decodeJoinResponse(const std::string& xml) const
 bool FsshttpSerializer::decodeRefreshResponse(const std::string& xml) const {
     auto code = xmlAttrValue(xml, "ErrorCode");
     return code == "Success" || code.empty();
+}
+
+std::string FsshttpSerializer::encodeCellPutChanges(
+        const std::string& fileUrl,
+        const std::string& clientId,
+        const std::string& sessionToken,
+        const std::string& base64Payload,
+        uint32_t           payloadBytes) const {
+    std::string sub =
+        "<SubRequest Type=\"Cell\" SubRequestToken=\"2\" "
+                    "ClientId=\"" + xmlEscape(clientId) + "\" "
+                    "SessionToken=\"" + xmlEscape(sessionToken) + "\">"
+        "<SubRequestData PartitionID=\"00000001-0000-0000-0000-000000000000\" "
+                        "BinaryDataSize=\"" + std::to_string(payloadBytes) + "\">"
+        "<BinaryData Value=\"" + base64Payload + "\"/>"
+        "</SubRequestData>"
+        "</SubRequest>";
+    return wrapEnvelope(fileUrl, sub);
+}
+
+std::string FsshttpSerializer::encodeCellGetChanges(
+        const std::string& fileUrl,
+        const std::string& clientId,
+        const std::string& sessionToken) const {
+    // Minimal GetChanges payload — just the SubRequest header; the FSSHTTPB binary
+    // encodes a Request+SubRequest with type=GetChanges.
+    std::string sub =
+        "<SubRequest Type=\"Cell\" SubRequestToken=\"2\" "
+                    "ClientId=\"" + xmlEscape(clientId) + "\" "
+                    "SessionToken=\"" + xmlEscape(sessionToken) + "\">"
+        "<SubRequestData PartitionID=\"00000001-0000-0000-0000-000000000000\" "
+                        "BinaryDataSize=\"0\"/>"
+        "</SubRequest>";
+    return wrapEnvelope(fileUrl, sub);
+}
+
+CellResponse FsshttpSerializer::decodeCellSubResponse(const std::string& xml) const {
+    CellResponse r;
+    auto code = xmlAttrValue(xml, "ErrorCode");
+    r.success = (code == "Success" || code.empty());
+    if (!r.success) return r;
+
+    // Extract base64-encoded FSSHTTPB blobs from Cell SubResponse BinaryData elements.
+    auto pos = xml.find("BinaryData");
+    while (pos != std::string::npos) {
+        std::string b64 = xmlAttrValue(xml.substr(pos), "Value");
+        if (!b64.empty()) {
+            auto blob = FsshttpBinaryReader::fromBase64(b64);
+            if (!blob.empty()) r.dataBlobs.push_back(std::move(blob));
+        }
+        pos = xml.find("BinaryData", pos + 10);
+    }
+    return r;
 }

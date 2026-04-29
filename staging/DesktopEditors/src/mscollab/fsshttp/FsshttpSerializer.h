@@ -1,5 +1,7 @@
 #pragma once
 #include <string>
+#include <vector>
+#include <cstdint>
 
 struct JoinResponse {
     bool        success = false;
@@ -12,10 +14,17 @@ struct CoauthorsInfo {
     std::string sessionToken;
 };
 
+struct CellResponse {
+    bool success = false;
+    // Each entry is a raw decoded data blob (OOXML bytes) from a GetChanges response.
+    std::vector<std::vector<uint8_t>> dataBlobs;
+};
+
 // Encodes MS-FSSHTTP SubRequests as SOAP/XML and decodes SubResponses.
 // All methods are stateless. Reference: [MS-FSSHTTP] sections 2.3-2.9.
 class FsshttpSerializer {
 public:
+    // Coauthoring SubRequests
     std::string encodeJoin(const std::string& fileUrl,
                            const std::string& clientId,
                            const std::string& sessionToken) const;
@@ -28,8 +37,22 @@ public:
                            const std::string& clientId,
                            const std::string& sessionToken) const;
 
-    JoinResponse   decodeJoinResponse(const std::string& xml) const;
-    bool           decodeRefreshResponse(const std::string& xml) const;
+    JoinResponse decodeJoinResponse(const std::string& xml) const;
+    bool         decodeRefreshResponse(const std::string& xml) const;
+
+    // Cell SubRequests — carry FSSHTTPB binary payloads for document deltas.
+    // base64Payload is the output of FsshttpCellSubRequest::buildPutChanges/buildGetChanges.
+    std::string encodeCellPutChanges(const std::string& fileUrl,
+                                     const std::string& clientId,
+                                     const std::string& sessionToken,
+                                     const std::string& base64Payload,
+                                     uint32_t           payloadBytes) const;
+
+    std::string encodeCellGetChanges(const std::string& fileUrl,
+                                     const std::string& clientId,
+                                     const std::string& sessionToken) const;
+
+    CellResponse decodeCellSubResponse(const std::string& xml) const;
 
 private:
     std::string wrapEnvelope(const std::string& fileUrl,

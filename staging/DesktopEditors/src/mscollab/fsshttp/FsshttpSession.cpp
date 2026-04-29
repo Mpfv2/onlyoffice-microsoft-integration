@@ -5,9 +5,11 @@ FsshttpSession::FsshttpSession(const std::string& fileUrl, const std::string& cl
 
 FsshttpSession::State FsshttpSession::state() const        { return m_state; }
 std::string FsshttpSession::sessionToken() const           { return m_sessionToken; }
+std::string FsshttpSession::storageToken() const           { return m_storageToken; }
 std::string FsshttpSession::fileUrl() const                { return m_fileUrl; }
 std::string FsshttpSession::clientId() const               { return m_clientId; }
 int         FsshttpSession::retryCount() const             { return m_retryCount; }
+void        FsshttpSession::setStorageToken(const std::string& t) { m_storageToken = t; }
 
 void FsshttpSession::setJoining() {
     m_state = State::Joining;

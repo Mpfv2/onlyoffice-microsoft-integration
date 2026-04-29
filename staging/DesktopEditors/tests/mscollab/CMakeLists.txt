@@ -24,6 +24,8 @@ add_executable(mscollab_tests
     ../../src/mscollab/auth/AuthModule.cpp
     ../../src/mscollab/fsshttp/FsshttpSerializer.cpp
     ../../src/mscollab/fsshttp/FsshttpSession.cpp
+    ../../src/mscollab/fsshttp/FsshttpBinaryEncoder.cpp
+    ../../src/mscollab/fsshttp/FsshttpCellSubRequest.cpp
     ../../src/mscollab/merge/MergeEngine.cpp
     ../../src/mscollab/graph/GraphApiClient.cpp
 )
@@ -33,4 +35,14 @@ target_link_libraries(mscollab_tests
     ${LIBSECRET_LIBRARIES}
     ${LIBCURL_LIBRARIES}
     ssl crypto
+)
+
+# Standalone binary encoder tests (uses plain assert/main, not GTest)
+add_executable(mscollab_fsshttpb_tests
+    test_fsshttpb.cpp
+    ../../src/mscollab/fsshttp/FsshttpBinaryEncoder.cpp
+    ../../src/mscollab/fsshttp/FsshttpCellSubRequest.cpp
+)
+target_link_libraries(mscollab_fsshttpb_tests
+    ${LIBCURL_LIBRARIES}
 )

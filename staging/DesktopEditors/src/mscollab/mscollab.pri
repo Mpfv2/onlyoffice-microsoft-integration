@@ -5,6 +5,8 @@ QT += widgets
 HEADERS += \
     $$PWD/auth/AuthModule.h \
     $$PWD/auth/TokenStore.h \
+    $$PWD/fsshttp/FsshttpBinaryEncoder.h \
+    $$PWD/fsshttp/FsshttpCellSubRequest.h \
     $$PWD/fsshttp/FsshttpClient.h \
     $$PWD/fsshttp/FsshttpSerializer.h \
     $$PWD/fsshttp/FsshttpSession.h \
@@ -17,6 +19,8 @@ HEADERS += \
 SOURCES += \
     $$PWD/auth/AuthModule.cpp \
     $$PWD/auth/TokenStore.cpp \
+    $$PWD/fsshttp/FsshttpBinaryEncoder.cpp \
+    $$PWD/fsshttp/FsshttpCellSubRequest.cpp \
     $$PWD/fsshttp/FsshttpClient.cpp \
     $$PWD/fsshttp/FsshttpSerializer.cpp \
     $$PWD/fsshttp/FsshttpSession.cpp \
