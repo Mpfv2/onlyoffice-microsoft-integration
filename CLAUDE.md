@@ -141,7 +141,7 @@ MergeResult merge(const Delta& local, const Delta& remote) const
 - ✅ GraphApiClient: uploadFile() — PUT /root:/{path}:/content; called from onDocumentClosed as safety-net sync
 - ✅ GetChanges knowledge tracking: `CurrentKnowledge` attribute threaded through FsshttpSerializer ↔ FsshttpClient; knowledge cleared on (re)join
 - ✅ Comments sync (bidirectional): parse/apply incoming comments.xml blobs; outgoing via asc_onAddComment → applyCommentDelta → PutChanges
-- 🔲 OMML equation co-authoring (known limitation: `applyParagraphDelta` strips `<m:oMath>` blocks; paragraphs with equations will lose their equations when a remote delta applies to them)
+- ✅ OMML equation safety: `applyParagraphDelta` skips paragraphs that contain `<m:oMath>` (no data loss); full equation co-authoring requires OMML-level delta support (out of scope)
 - 🔲 Excel / PowerPoint support
 
 ## Key Constraints
