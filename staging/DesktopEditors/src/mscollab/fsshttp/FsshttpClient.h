@@ -57,6 +57,9 @@ private:
     std::string m_knowledgeB64;
     std::mutex  m_knowledgeMutex;
 
+    // Protects m_document: read in pollLoop thread, written from caller thread.
+    std::mutex  m_documentMutex;
+
     std::string post(const std::string& xml);
     std::string endpointUrl() const;
     void        heartbeatLoop();  // 30s refresh cycle

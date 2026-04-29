@@ -164,6 +164,7 @@ void FsshttpClient::flushPendingDeltas() {
 }
 
 void FsshttpClient::loadDocument(const std::string& localDocxPath) {
+    std::lock_guard<std::mutex> lk(m_documentMutex);
     if (!m_document.loadFromDocx(localDocxPath))
         std::cerr << "[MsCollab] OoxmlDocument: could not load " << localDocxPath << "\n";
 }
@@ -181,33 +182,36 @@ void FsshttpClient::pollGetChanges() {
     if (resp.empty()) return;
     auto cellResp = m_serializer.decodeCellSubResponse(resp);
 
-    // Update the stored knowledge token so the next poll fetches only new changes.
     if (!cellResp.currentKnowledgeB64.empty()) {
         std::lock_guard<std::mutex> lk(m_knowledgeMutex);
         m_knowledgeB64 = cellResp.currentKnowledgeB64;
     }
 
     for (const auto& blob : cellResp.dataBlobs) {
-        // Try comments part first (has <w:comments> root).
         auto comments = OoxmlDocument::parseCommentDeltas(blob);
         if (!comments.empty()) {
             for (const auto& c : comments) {
                 std::string j = "{\"type\":\"comment\""
                                 ",\"commentId\":"  + std::to_string(c.id) +
-                                ",\"author\":\"" + c.author + "\""
-                                ",\"date\":\"" + c.date + "\""
-                                ",\"text\":\"" + c.text + "\"}";
+                                ",\"author\":\"" + jsonEscapeStr(c.author) + "\""
+                                ",\"date\":\"" + jsonEscapeStr(c.date) + "\""
+                                ",\"text\":\"" + jsonEscapeStr(c.text) + "\"}";
                 if (onRemoteDelta) onRemoteDelta(j);
             }
             continue;
         }
 
-        // Fall through to paragraph parsing (document.xml blobs).
-        if (m_document.isLoaded()) {
+        // paragraph parsing — check isLoaded under lock, parse static method outside
+        bool loaded;
+        {
+            std::lock_guard<std::mutex> lk(m_documentMutex);
+            loaded = m_document.isLoaded();
+        }
+        if (loaded) {
             auto deltas = OoxmlDocument::parseParagraphDeltas(blob);
             for (const auto& d : deltas) {
                 std::string j = "{\"paragraphIndex\":" + std::to_string(d.index) +
-                                ",\"content\":\"" + d.text + "\"}";
+                                ",\"content\":\"" + jsonEscapeStr(d.text) + "\"}";
                 if (onRemoteDelta) onRemoteDelta(j);
             }
         } else {
@@ -269,8 +273,12 @@ void FsshttpClient::sendDeltaImmediate(const std::string& deltaJson) {
         std::string author = jsonFieldStr(deltaJson, "author");
         std::string date   = jsonFieldStr(deltaJson, "date");
         std::string text   = jsonFieldStr(deltaJson, "text");
-        m_document.applyCommentDelta(id, author, date, text);
-        auto ooxml = m_document.serializeComments();
+        std::vector<uint8_t> ooxml;
+        {
+            std::lock_guard<std::mutex> lk(m_documentMutex);
+            m_document.applyCommentDelta(id, author, date, text);
+            ooxml = m_document.serializeComments();
+        }
         if (ooxml.empty()) return;
         auto b64 = FsshttpCellSubRequest::buildPutChanges(ooxml, m_session.sessionToken());
         auto soapXml = m_serializer.encodeCellPutChanges(
@@ -282,14 +290,16 @@ void FsshttpClient::sendDeltaImmediate(const std::string& deltaJson) {
 
     // Paragraph delta: {paragraphIndex:N, content:"..."}
     std::vector<uint8_t> ooxml;
-    if (m_document.isLoaded()) {
-        int paraIdx = jsonFieldInt(deltaJson, "paragraphIndex");
-        std::string content = jsonFieldStr(deltaJson, "content");
-        m_document.applyParagraphDelta(paraIdx, content);
-        ooxml = m_document.serialize();
-    } else {
-        ooxml = deltaToOoxmlStub(deltaJson);
+    {
+        std::lock_guard<std::mutex> lk(m_documentMutex);
+        if (m_document.isLoaded()) {
+            int paraIdx = jsonFieldInt(deltaJson, "paragraphIndex");
+            std::string content = jsonFieldStr(deltaJson, "content");
+            m_document.applyParagraphDelta(paraIdx, content);
+            ooxml = m_document.serialize();
+        }
     }
+    if (ooxml.empty()) ooxml = deltaToOoxmlStub(deltaJson);
     auto b64 = FsshttpCellSubRequest::buildPutChanges(ooxml, m_session.sessionToken());
     auto soapXml = m_serializer.encodeCellPutChanges(
         m_session.fileUrl(), m_session.clientId(), m_session.sessionToken(),
