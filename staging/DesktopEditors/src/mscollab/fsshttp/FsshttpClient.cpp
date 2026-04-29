@@ -156,10 +156,15 @@ void FsshttpClient::pollLoop() {
 }
 
 void FsshttpClient::flushPendingDeltas() {
-    std::lock_guard<std::mutex> lock(m_deltaMutex);
-    while (!m_pendingDeltas.empty()) {
-        sendDeltaImmediate(m_pendingDeltas.front());
-        m_pendingDeltas.pop();
+    // Drain the queue under the lock so sendDelta() isn't blocked during HTTP calls.
+    std::queue<std::string> local;
+    {
+        std::lock_guard<std::mutex> lock(m_deltaMutex);
+        std::swap(local, m_pendingDeltas);
+    }
+    while (!local.empty()) {
+        sendDeltaImmediate(local.front());
+        local.pop();
     }
 }
 
