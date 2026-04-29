@@ -3,8 +3,28 @@
 #include <algorithm>
 #include <sstream>
 #include <fstream>
+#include <iomanip>
 
 static const std::string GRAPH_BASE = "https://graph.microsoft.com/v1.0/me/drive";
+
+// Percent-encode a path component for use in Graph API URLs.
+// Encodes everything except unreserved characters and forward slashes
+// (slashes are kept as path separators).
+static std::string urlEncodePath(const std::string& path) {
+    std::string out;
+    out.reserve(path.size() * 3);
+    for (unsigned char c : path) {
+        if (c == '/' || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') ||
+            (c >= '0' && c <= '9') || c == '-' || c == '_' || c == '.' || c == '~') {
+            out += static_cast<char>(c);
+        } else {
+            char buf[4];
+            std::snprintf(buf, sizeof(buf), "%%%02X", static_cast<unsigned>(c));
+            out += buf;
+        }
+    }
+    return out;
+}
 
 static size_t curlWrite(void* ptr, size_t size, size_t nmemb, std::string* s) {
     s->append(static_cast<char*>(ptr), size * nmemb);
@@ -85,15 +105,7 @@ std::string GraphApiClient::resolveWebUrl(const std::string& localPath,
     std::replace(relativePath.begin(), relativePath.end(), '\\', '/');
     if (relativePath.empty()) return {};
 
-    // Graph API: GET /me/drive/root:/{relative-path}
-    // URL-encode minimal characters (' ' -> %20, but Graph accepts unencoded slashes)
-    std::string encoded;
-    for (char c : relativePath) {
-        if (c == ' ') encoded += "%20";
-        else          encoded += c;
-    }
-
-    std::string url = GRAPH_BASE + "/root:/" + encoded;
+    std::string url = GRAPH_BASE + "/root:/" + urlEncodePath(relativePath);
     std::string resp = get(url);
     if (resp.empty()) return {};
     return jsonString(resp, "webUrl");
@@ -105,13 +117,8 @@ std::vector<GraphApiClient::DriveItem> GraphApiClient::listFolder(
     if (folderPath.empty()) {
         url = GRAPH_BASE + "/root/children?$select=id,name,webUrl,folder,file,@microsoft.graph.downloadUrl";
     } else {
-        std::string encoded;
-        for (char c : folderPath) {
-            if (c == ' ') encoded += "%20";
-            else          encoded += c;
-        }
-        url = GRAPH_BASE + "/root:/" + encoded + ":/children"
-              "?$select=id,name,webUrl,folder,file,@microsoft.graph.downloadUrl";
+        url = GRAPH_BASE + "/root:/" + urlEncodePath(folderPath) +
+              ":/children?$select=id,name,webUrl,folder,file,@microsoft.graph.downloadUrl";
     }
 
     std::string resp = get(url);
@@ -162,12 +169,6 @@ bool GraphApiClient::uploadFile(const std::string& localPath,
     std::replace(relativePath.begin(), relativePath.end(), '\\', '/');
     if (relativePath.empty()) return false;
 
-    std::string encoded;
-    for (char c : relativePath) {
-        if (c == ' ') encoded += "%20";
-        else          encoded += c;
-    }
-
     // Read file bytes
     std::ifstream file(localPath, std::ios::binary);
     if (!file.is_open()) return false;
@@ -178,7 +179,7 @@ bool GraphApiClient::uploadFile(const std::string& localPath,
     std::string token = m_tokenProvider();
     if (token.empty()) return false;
 
-    std::string url = GRAPH_BASE + "/root:/" + encoded + ":/content";
+    std::string url = GRAPH_BASE + "/root:/" + urlEncodePath(relativePath) + ":/content";
     long httpCode = 0;
     CURL* curl = curl_easy_init();
     if (!curl) return false;
