@@ -3,15 +3,36 @@
 #include <fstream>
 #include <cstdio>
 
-TEST(GraphApiClient, ResolvesRelativePath) {
-    // Does not hit the network — just tests path-stripping logic.
-    // We exercise resolveWebUrl with a mock that returns a fake JSON response.
-    // Since GraphApiClient uses libcurl internally, we test the path extraction logic
-    // by verifying the URL construction via a token-returning lambda.
-    // Full integration test requires a real tenant — run manually on Arch.
-    SUCCEED(); // placeholder — real test requires live Microsoft 365 tenant
+// ---------------------------------------------------------------------------
+// jsonString: extracts a string field from a JSON fragment
+// ---------------------------------------------------------------------------
+TEST(GraphApiClient, JsonStringExtractsValue) {
+    std::string json = R"({"id":"abc123","name":"Documents"})";
+    EXPECT_EQ(GraphApiClient::jsonString(json, "id"),   "abc123");
+    EXPECT_EQ(GraphApiClient::jsonString(json, "name"), "Documents");
 }
 
+TEST(GraphApiClient, JsonStringReturnsEmptyWhenKeyMissing) {
+    std::string json = R"({"id":"abc123"})";
+    EXPECT_EQ(GraphApiClient::jsonString(json, "webUrl"), "");
+}
+
+// ---------------------------------------------------------------------------
+// jsonBool: extracts a boolean field from a JSON fragment
+// ---------------------------------------------------------------------------
+TEST(GraphApiClient, JsonBoolReturnsTrueForTrueValue) {
+    std::string json = R"({"readOnly":true})";
+    EXPECT_TRUE(GraphApiClient::jsonBool(json, "readOnly"));
+}
+
+TEST(GraphApiClient, JsonBoolReturnsFalseWhenKeyMissing) {
+    std::string json = R"({"id":"x"})";
+    EXPECT_FALSE(GraphApiClient::jsonBool(json, "readOnly"));
+}
+
+// ---------------------------------------------------------------------------
+// parseDriveItem: constructs DriveItem from a JSON object excerpt
+// ---------------------------------------------------------------------------
 TEST(GraphApiClient, ParsesDriveItemFolder) {
     std::string json = R"({
         "id": "abc123",
@@ -19,10 +40,27 @@ TEST(GraphApiClient, ParsesDriveItemFolder) {
         "webUrl": "https://tenant-my.sharepoint.com/personal/user/Documents",
         "folder": {"childCount": 5}
     })";
-    // Access private parseDriveItem via a subclass for white-box testing
-    // For now verify the public listFolder returns expected types from live API.
-    // Unit test of JSON parsing is done via the struct fields after a real call.
-    SUCCEED(); // placeholder — JSON parser tested via integration
+    auto item = GraphApiClient::parseDriveItem(json);
+    EXPECT_EQ(item.id,      "abc123");
+    EXPECT_EQ(item.name,    "Documents");
+    EXPECT_EQ(item.webUrl,
+              "https://tenant-my.sharepoint.com/personal/user/Documents");
+    EXPECT_TRUE(item.isFolder);
+}
+
+TEST(GraphApiClient, ParsesDriveItemFile) {
+    std::string json = R"({
+        "id": "def456",
+        "name": "Assignment.docx",
+        "webUrl": "https://tenant-my.sharepoint.com/personal/user/Docs/Assignment.docx",
+        "@microsoft.graph.downloadUrl": "https://download.example.com/file",
+        "file": {"mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document"}
+    })";
+    auto item = GraphApiClient::parseDriveItem(json);
+    EXPECT_EQ(item.id,   "def456");
+    EXPECT_EQ(item.name, "Assignment.docx");
+    EXPECT_EQ(item.downloadUrl, "https://download.example.com/file");
+    EXPECT_FALSE(item.isFolder);
 }
 
 TEST(GraphApiClient, StripsFolderPrefixCorrectly) {

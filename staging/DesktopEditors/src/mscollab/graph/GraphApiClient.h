@@ -35,12 +35,6 @@ public:
     bool uploadFile(const std::string& localPath,
                     const std::string& onedriveFolderName) const;
 
-private:
-    std::function<std::string()> m_tokenProvider;
-
-    // Executes a GET request to the Graph API and returns the response body.
-    std::string get(const std::string& url) const;
-
     // Parses a single DriveItem from a JSON object string excerpt.
     static DriveItem parseDriveItem(const std::string& json);
 
@@ -49,4 +43,10 @@ private:
 
     // Extracts a JSON boolean field value. Returns false if not found.
     static bool jsonBool(const std::string& json, const std::string& key);
+
+private:
+    std::function<std::string()> m_tokenProvider;
+
+    // Executes a GET request to the Graph API and returns the response body.
+    std::string get(const std::string& url) const;
 };

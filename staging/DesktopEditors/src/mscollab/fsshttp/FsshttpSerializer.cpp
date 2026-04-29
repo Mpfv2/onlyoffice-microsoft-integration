@@ -81,6 +81,7 @@ std::string FsshttpSerializer::xmlAttrValue(const std::string& xml,
     if (pos == std::string::npos) return {};
     pos += attr.size() + 2;
     auto end = xml.find('"', pos);
+    if (end == std::string::npos) return {};
     return xml.substr(pos, end - pos);
 }
 

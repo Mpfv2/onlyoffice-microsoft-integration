@@ -318,10 +318,7 @@ void OoxmlDocument::applyCommentDelta(int id, const std::string& author,
         "</w:comment>";
 
     // Remove an existing entry with the same id, then insert before </w:comments>.
-    const std::string idAttr = "w:id=\"" + std::to_string(id) + "\"";
-    auto existStart = m_commentsXml.find("<w:comment " + idAttr);
-    if (existStart == std::string::npos)
-        existStart = m_commentsXml.find("<w:comment w:id=\"" + std::to_string(id) + "\"");
+    auto existStart = m_commentsXml.find("<w:comment w:id=\"" + std::to_string(id) + "\"");
     if (existStart != std::string::npos) {
         auto existEnd = m_commentsXml.find("</w:comment>", existStart);
         if (existEnd != std::string::npos)
