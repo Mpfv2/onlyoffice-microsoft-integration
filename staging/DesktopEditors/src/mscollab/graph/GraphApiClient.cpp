@@ -2,6 +2,7 @@
 #include <curl/curl.h>
 #include <algorithm>
 #include <sstream>
+#include <fstream>
 
 static const std::string GRAPH_BASE = "https://graph.microsoft.com/v1.0/me/drive";
 
@@ -147,4 +148,62 @@ std::vector<GraphApiClient::DriveItem> GraphApiClient::listFolder(
         }
     }
     return items;
+}
+
+bool GraphApiClient::uploadFile(const std::string& localPath,
+                                const std::string& onedriveFolderName) const {
+    // Build relative path (same logic as resolveWebUrl)
+    auto pos = localPath.find(onedriveFolderName);
+    if (pos == std::string::npos) return false;
+    pos += onedriveFolderName.size();
+    if (pos < localPath.size() && (localPath[pos] == '/' || localPath[pos] == '\\'))
+        ++pos;
+    std::string relativePath = localPath.substr(pos);
+    std::replace(relativePath.begin(), relativePath.end(), '\\', '/');
+    if (relativePath.empty()) return false;
+
+    std::string encoded;
+    for (char c : relativePath) {
+        if (c == ' ') encoded += "%20";
+        else          encoded += c;
+    }
+
+    // Read file bytes
+    std::ifstream file(localPath, std::ios::binary);
+    if (!file.is_open()) return false;
+    std::string body((std::istreambuf_iterator<char>(file)),
+                      std::istreambuf_iterator<char>());
+    if (body.empty()) return false;
+
+    std::string token = m_tokenProvider();
+    if (token.empty()) return false;
+
+    std::string url = GRAPH_BASE + "/root:/" + encoded + ":/content";
+    long httpCode = 0;
+    CURL* curl = curl_easy_init();
+    if (!curl) return false;
+
+    struct curl_slist* headers = nullptr;
+    headers = curl_slist_append(headers, ("Authorization: Bearer " + token).c_str());
+    headers = curl_slist_append(headers,
+        "Content-Type: application/vnd.openxmlformats-officedocument.wordprocessingml.document");
+
+    std::string response;
+    curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+    curl_easy_setopt(curl, CURLOPT_UPLOAD, 1L);
+    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, body.c_str());
+    curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, static_cast<long>(body.size()));
+    // Override UPLOAD to use PUT semantics
+    curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "PUT");
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, curlWrite);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response);
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 30L);
+    curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+    curl_easy_perform(curl);
+    curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &httpCode);
+
+    curl_slist_free_all(headers);
+    curl_easy_cleanup(curl);
+    return (httpCode == 200 || httpCode == 201);
 }

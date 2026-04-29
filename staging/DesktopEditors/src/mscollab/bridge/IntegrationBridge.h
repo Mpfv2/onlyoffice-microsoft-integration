@@ -39,6 +39,8 @@ private:
     std::unique_ptr<FsshttpClient> m_client;
     MergeEngine                    m_merge;
     MergeEngine::Delta             m_lastLocalDelta;  // for conflict detection
+    std::string                    m_localPath;       // set by startSession for uploadFile
+    std::string                    m_onedriveFolderName;
 
     bool        isOneDrivePath(const std::string& path) const;
     std::string resolveOneDriveUrl(const std::string& localPath) const;

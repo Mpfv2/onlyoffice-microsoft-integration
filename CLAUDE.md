@@ -137,7 +137,8 @@ MergeResult merge(const Delta& local, const Delta& remote) const
 - ✅ FsshttpClient: sendDelta uses OOXML; 5s GetChanges poll loop; delta queue; rejoin backoff
 - ✅ IntegrationBridge: openFromOneDrive, MergeEngine conflict resolution in remote delta path
 - ✅ JS shim: paragraph-level apply via asc_SetSelectionRange + asc_ReplaceText; TRACKED change support
-- 🔲 OoxmlDocument unit tests (without real .docx)
+- ✅ OoxmlDocument unit tests (5 GTest tests, no real .docx required)
+- ✅ GraphApiClient: uploadFile() — PUT /root:/{path}:/content; called from onDocumentClosed as safety-net sync
 - 🔲 GetChanges "knowledge" tracking (currently fetches all changes, not delta-since-last)
 - 🔲 OMML equation co-authoring
 - 🔲 Comments/tracked changes sync

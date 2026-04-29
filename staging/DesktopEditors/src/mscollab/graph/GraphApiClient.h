@@ -29,6 +29,12 @@ public:
     // Returns empty vector on failure.
     std::vector<DriveItem> listFolder(const std::string& folderPath) const;
 
+    // Uploads a local .docx file to OneDrive, overwriting the existing cloud copy.
+    // Uses the same relative-path extraction as resolveWebUrl.
+    // Returns true on HTTP 200/201, false on failure.
+    bool uploadFile(const std::string& localPath,
+                    const std::string& onedriveFolderName) const;
+
 private:
     std::function<std::string()> m_tokenProvider;
 

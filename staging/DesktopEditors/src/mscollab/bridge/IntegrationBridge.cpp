@@ -42,6 +42,7 @@ std::string IntegrationBridge::serializeDelta(const MergeEngine::Delta& d) {
 
 void IntegrationBridge::startSession(const std::string& webUrl,
                                       const std::string& localPath) {
+    m_localPath = localPath;
     std::string clientId = "onlyoffice-" + std::to_string(std::hash<std::string>{}(webUrl));
     m_client = std::make_unique<FsshttpClient>(
         webUrl, clientId, [this]() { return m_auth.accessToken(); });
@@ -85,6 +86,13 @@ void IntegrationBridge::onDocumentClosed(const std::string& /*filePath*/) {
     if (m_client) {
         m_client->exitSession();
         m_client.reset();
+        // Best-effort upload: ensures OneDrive has the latest copy even if FSSHTTP
+        // missed final deltas (e.g. PutChanges inflight at session exit).
+        if (!m_localPath.empty()) {
+            if (!m_graph.uploadFile(m_localPath, MsCollabConfig::ONEDRIVE_FOLDER))
+                std::cerr << "[MsCollab] Final OneDrive upload failed (non-fatal)\n";
+            m_localPath.clear();
+        }
     }
 }
 
