@@ -19,13 +19,37 @@ FsshttpClient::~FsshttpClient() {
     exitSession();
 }
 
-// OneDrive for Business URLs: https://{tenant}-my.sharepoint.com/personal/{upn}/...
-// MS-FSSHTTP endpoint is at the host root + /_vti_bin/vti_aut/author.dll
+// OneDrive for Business URLs:
+//   https://{tenant}-my.sharepoint.com/personal/{upn}/Documents/File.docx
+// The FSSHTTP endpoint lives at the personal site collection root:
+//   https://{tenant}-my.sharepoint.com/personal/{upn}/_vti_bin/vti_aut/author.dll
+// We find the site root by taking the path up to and including the third segment
+// (/personal/{upn}/), then appending the endpoint path.
 std::string FsshttpClient::endpointUrl() const {
     const auto& url = m_session.fileUrl();
-    auto slash = url.find('/', 8);  // skip https://
-    auto host = url.substr(0, slash);
-    return host + "/_vti_bin/vti_aut/author.dll";
+
+    // Skip protocol prefix (https://)
+    size_t hostStart = url.find("://");
+    if (hostStart == std::string::npos) return url;
+    hostStart += 3;
+
+    // Find path start (first '/' after host)
+    size_t pathStart = url.find('/', hostStart);
+    if (pathStart == std::string::npos)
+        return url + "/_vti_bin/vti_aut/author.dll";
+
+    // Walk path segments: /personal/{upn}/  → 3 slashes total after host
+    size_t siteRoot = pathStart;
+    for (int segments = 0; segments < 2 && siteRoot < url.size(); ++segments) {
+        siteRoot = url.find('/', siteRoot + 1);
+        if (siteRoot == std::string::npos)
+            break;
+    }
+
+    if (siteRoot == std::string::npos)
+        siteRoot = url.size();
+
+    return url.substr(0, siteRoot) + "/_vti_bin/vti_aut/author.dll";
 }
 
 std::string FsshttpClient::post(const std::string& xml) {
