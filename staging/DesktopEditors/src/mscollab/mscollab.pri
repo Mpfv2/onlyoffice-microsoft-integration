@@ -2,6 +2,11 @@ INCLUDEPATH += $$PWD
 
 QT += widgets
 
+# IntegrationBridge uses std::make_unique (C++14). Pin C++17 so we get
+# uniform behaviour regardless of what desktop-sdk.pro inherits — and to
+# keep the same standard the test CMakeLists asks for.
+CONFIG += c++17
+
 HEADERS += \
     $$PWD/auth/AuthModule.h \
     $$PWD/auth/TokenStore.h \

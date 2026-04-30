@@ -1,5 +1,11 @@
 cmake_minimum_required(VERSION 3.14)
-project(mscollab_tests)
+project(mscollab_tests CXX)
+
+# IntegrationBridge uses std::make_unique (C++14). Pin it explicitly so we
+# don't pick up whatever the system-default cxx standard happens to be.
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
 
 find_package(GTest REQUIRED)
 find_package(PkgConfig REQUIRED)

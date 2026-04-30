@@ -21,6 +21,16 @@ In the file that defines the main toolbar (typically the main window class), add
 QAction* openOneDriveAction = toolbar->addAction(
     QIcon(":/icons/onedrive.png"), "Open from OneDrive");
 connect(openOneDriveAction, &QAction::triggered, this, [this]() {
+    // Trigger the browser-based OAuth flow before opening the dialog so the
+    // user doesn't see an empty file picker on first launch.  authenticate()
+    // is a no-op if there's already a valid refresh token in libsecret.
+    auto& auth = m_mscollabBridge.authModule();
+    if (!auth.isAuthenticated() && !auth.authenticate()) {
+        QMessageBox::warning(this, "OneDrive",
+            "Sign-in failed.  Check your network and try again.");
+        return;
+    }
+
     OneDriveDialog dlg([this]() {
         return m_mscollabBridge.authModule().accessToken();
     }, this);
