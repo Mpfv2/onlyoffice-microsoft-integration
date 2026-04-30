@@ -33,4 +33,7 @@ SOURCES += \
 CONFIG += link_pkgconfig
 # libxml2 was removed when FsshttpSerializer dropped XPath/parser usage; we now
 # use std::string find for SOAP/XML attribute extraction.
-PKGCONFIG += libcurl libsecret-1 libzip
+# OpenSSL: AuthModule uses SHA256 + RAND_bytes for PKCE.  Linking via openssl.pc
+# (libssl + libcrypto) rather than bare -lssl -lcrypto so build picks up the
+# correct include path on hosts where OpenSSL lives outside /usr/include.
+PKGCONFIG += libcurl libsecret-1 libzip openssl
