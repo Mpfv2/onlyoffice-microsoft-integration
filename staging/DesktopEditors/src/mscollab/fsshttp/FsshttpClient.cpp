@@ -26,10 +26,18 @@ FsshttpClient::~FsshttpClient() {
 
 // OneDrive for Business URLs:
 //   https://{tenant}-my.sharepoint.com/personal/{upn}/Documents/File.docx
-// The FSSHTTP endpoint lives at the personal site collection root:
-//   https://{tenant}-my.sharepoint.com/personal/{upn}/_vti_bin/vti_aut/author.dll
-// We find the site root by taking the path up to and including the third segment
-// (/personal/{upn}/), then appending the endpoint path.
+// The FSSHTTP endpoint on SharePoint Online (which OneDrive uses) is the
+// cell-storage WCF service at the personal site collection root:
+//   https://{tenant}-my.sharepoint.com/personal/{upn}/_vti_bin/cellstorage.svc
+//
+// Note: the legacy `_vti_bin/_vti_aut/author.dll` endpoint is the SharePoint
+// 2003 FrontPage Server Extensions DLL.  It is NOT routed on SPO; using it
+// would fail on every request.  We use cellstorage.svc which is the modern
+// WCF SOAP host that actually accepts MS-FSSHTTP RequestCollection envelopes
+// (this is the endpoint Word/Mac and Word/Win desktop hit for coauth).
+//
+// Path-walk strategy: take the URL up to and including the third segment
+// (/personal/{upn}/), then append the endpoint path.
 std::string FsshttpClient::endpointUrl() const {
     const auto& url = m_session.fileUrl();
 
@@ -41,7 +49,7 @@ std::string FsshttpClient::endpointUrl() const {
     // Find path start (first '/' after host)
     size_t pathStart = url.find('/', hostStart);
     if (pathStart == std::string::npos)
-        return url + "/_vti_bin/vti_aut/author.dll";
+        return url + "/_vti_bin/cellstorage.svc";
 
     // Walk path segments: /personal/{upn}/  → 3 slashes total after host
     size_t siteRoot = pathStart;
@@ -54,7 +62,7 @@ std::string FsshttpClient::endpointUrl() const {
     if (siteRoot == std::string::npos)
         siteRoot = url.size();
 
-    return url.substr(0, siteRoot) + "/_vti_bin/vti_aut/author.dll";
+    return url.substr(0, siteRoot) + "/_vti_bin/cellstorage.svc";
 }
 
 std::string FsshttpClient::post(const std::string& xml) {
@@ -62,16 +70,28 @@ std::string FsshttpClient::post(const std::string& xml) {
     if (token.empty()) return {};
     std::string response;
     CURL* curl = curl_easy_init();
+    if (!curl) return {};
+
     struct curl_slist* headers = nullptr;
     headers = curl_slist_append(headers, "Content-Type: text/xml; charset=utf-8");
     headers = curl_slist_append(headers, ("Authorization: Bearer " + token).c_str());
+    // cellstorage.svc is a WCF SOAP service — it routes the request to the
+    // ICellStorages.ExecuteCellStorageRequest operation only when this exact
+    // SOAPAction is present. Without it, SPO responds 415/500.
+    headers = curl_slist_append(headers,
+        "SOAPAction: \"http://schemas.microsoft.com/sharepoint/soap/"
+        "ICellStorages/ExecuteCellStorageRequest\"");
+    // POSTFIELDSIZE so binary-NUL or multi-byte UTF-8 in the body isn't
+    // strlen-clipped (xml is plain ASCII today, but cheap insurance).
     curl_easy_setopt(curl, CURLOPT_URL, endpointUrl().c_str());
     curl_easy_setopt(curl, CURLOPT_POST, 1L);
-    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, xml.c_str());
+    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, xml.data());
+    curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE_LARGE,
+                     static_cast<curl_off_t>(xml.size()));
     curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, curlWrite);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response);
-    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 10L);
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 30L);
     curl_easy_perform(curl);
     curl_slist_free_all(headers);
     curl_easy_cleanup(curl);

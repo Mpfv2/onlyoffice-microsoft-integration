@@ -14,14 +14,14 @@ static std::string computeEndpointUrl(const std::string& url) {
     hostStart += 3;
     size_t pathStart = url.find('/', hostStart);
     if (pathStart == std::string::npos)
-        return url + "/_vti_bin/vti_aut/author.dll";
+        return url + "/_vti_bin/cellstorage.svc";
     size_t siteRoot = pathStart;
     for (int segments = 0; segments < 2 && siteRoot < url.size(); ++segments) {
         siteRoot = url.find('/', siteRoot + 1);
         if (siteRoot == std::string::npos) break;
     }
     if (siteRoot == std::string::npos) siteRoot = url.size();
-    return url.substr(0, siteRoot) + "/_vti_bin/vti_aut/author.dll";
+    return url.substr(0, siteRoot) + "/_vti_bin/cellstorage.svc";
 }
 
 TEST(FsshttpClient, EndpointUrlIncludesPersonalSitePath) {
@@ -31,7 +31,7 @@ TEST(FsshttpClient, EndpointUrlIncludesPersonalSitePath) {
     std::string endpoint = computeEndpointUrl(fileUrl);
     EXPECT_EQ(endpoint,
         "https://techcollege-my.sharepoint.com/personal/elias_techcollege_dk"
-        "/_vti_bin/vti_aut/author.dll");
+        "/_vti_bin/cellstorage.svc");
 }
 
 TEST(FsshttpClient, EndpointUrlHostOnlyFallback) {
@@ -39,7 +39,7 @@ TEST(FsshttpClient, EndpointUrlHostOnlyFallback) {
     // No third slash → fallback appends to the full URL
     std::string endpoint = computeEndpointUrl(fileUrl);
     EXPECT_EQ(endpoint,
-        "https://example.sharepoint.com/nodocs/_vti_bin/vti_aut/author.dll");
+        "https://example.sharepoint.com/nodocs/_vti_bin/cellstorage.svc");
 }
 
 TEST(FsshttpSession, InitialStateIsDisconnected) {
