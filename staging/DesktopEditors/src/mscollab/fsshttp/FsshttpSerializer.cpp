@@ -18,10 +18,22 @@ static std::string xmlEscape(const std::string& s) {
 
 std::string FsshttpSerializer::wrapEnvelope(const std::string& fileUrl,
                                             const std::string& subrequest) const {
+    // The ICellStorages.ExecuteCellStorageRequest WCF operation expects two
+    // sibling elements in <soap:Body>: <RequestVersion> followed by
+    // <RequestCollection>.  Without RequestVersion, SharePoint Online treats
+    // the request as a malformed legacy request and 500s.  Both elements live
+    // in the http://schemas.microsoft.com/sharepoint/soap/ namespace.
+    //
+    // SPO accepts SubRequest as a direct child of Request, but observed
+    // responses (and the existing test fixtures) use the <SubRequestCollection>
+    // wrapper.  Keep the wrapper on requests for symmetry — both forms are
+    // accepted by the cellstorage.svc dispatcher.
     return
         "<?xml version=\"1.0\" encoding=\"utf-8\"?>"
         "<soap:Envelope xmlns:soap=\"http://schemas.xmlsoap.org/soap/envelope/\">"
         "<soap:Body>"
+        "<RequestVersion xmlns=\"http://schemas.microsoft.com/sharepoint/soap/\" "
+                        "Version=\"2\" MinorVersion=\"2\"/>"
         "<RequestCollection xmlns=\"http://schemas.microsoft.com/sharepoint/soap/\" "
                            "Version=\"2.2\">"
         "<Request Url=\"" + xmlEscape(fileUrl) + "\" "
