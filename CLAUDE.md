@@ -55,9 +55,12 @@ onlyoffice-mscollab/
 ## Build (on Arch Linux after submodule setup)
 
 ```bash
-sudo pacman -S qt5-base qt5-webengine qt5-tools libcurl-gnutls libxml2 libsecret libzip cmake
+sudo pacman -S qt5-base qt5-webengine qt5-tools libcurl-gnutls libsecret libzip cmake gtest openssl pkgconf
 python3 build_tools/build.py --module desktop --platform linux_64
 ```
+
+(libxml2 used to be a dep but isn't anymore — `FsshttpSerializer` switched
+to `std::string::find` for SOAP attribute extraction.)
 
 ## Running Tests
 

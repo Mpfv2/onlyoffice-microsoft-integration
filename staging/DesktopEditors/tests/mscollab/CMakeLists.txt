@@ -42,14 +42,11 @@ target_link_libraries(mscollab_tests
     ssl crypto
 )
 
-# Standalone binary encoder tests (uses plain assert/main, not GTest)
+# Standalone binary encoder tests (uses plain assert/main, not GTest).
+# These only exercise FsshttpBinaryEncoder + FsshttpCellSubRequest, no I/O,
+# so we don't need libzip or libcurl in the link.
 add_executable(mscollab_fsshttpb_tests
     test_fsshttpb.cpp
     ../../src/mscollab/fsshttp/FsshttpBinaryEncoder.cpp
     ../../src/mscollab/fsshttp/FsshttpCellSubRequest.cpp
-    ../../src/mscollab/fsshttp/OoxmlDocument.cpp
-)
-target_link_libraries(mscollab_fsshttpb_tests
-    ${LIBCURL_LIBRARIES}
-    ${LIBZIP_LIBRARIES}
 )

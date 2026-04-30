@@ -31,4 +31,6 @@ SOURCES += \
     $$PWD/merge/MergeEngine.cpp
 
 CONFIG += link_pkgconfig
-PKGCONFIG += libcurl libxml-2.0 libsecret-1 libzip
+# libxml2 was removed when FsshttpSerializer dropped XPath/parser usage; we now
+# use std::string find for SOAP/XML attribute extraction.
+PKGCONFIG += libcurl libsecret-1 libzip

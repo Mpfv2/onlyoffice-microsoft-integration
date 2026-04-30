@@ -106,26 +106,6 @@ static size_t findNthParagraphStart(const std::string& xml, int n)
     return std::string::npos;
 }
 
-// Count total <w:p ...> elements (same rules as above).
-static int countParagraphs(const std::string& xml)
-{
-    int count = 0;
-    size_t pos = 0;
-    while (pos < xml.size()) {
-        size_t found = xml.find("<w:p", pos);
-        if (found == std::string::npos) break;
-        size_t afterTag = found + 4;
-        if (afterTag < xml.size()) {
-            char c = xml[afterTag];
-            if (c == '>' || c == ' ' || c == '\n' || c == '\r' || c == '\t') {
-                ++count;
-            }
-        }
-        pos = found + 1;
-    }
-    return count;
-}
-
 void OoxmlDocument::applyParagraphDelta(int paragraphIndex, const std::string& text)
 {
     const std::string newPara =

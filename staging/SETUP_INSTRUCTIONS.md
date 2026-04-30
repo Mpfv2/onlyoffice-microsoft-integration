@@ -40,8 +40,9 @@ include(src/mscollab/mscollab.pri)
 ```bash
 sudo pacman -S --needed \
   qt5-base qt5-webengine qt5-tools \
-  libcurl-gnutls libxml2 libsecret libzip \
-  cmake make gcc python3 git
+  libcurl-gnutls libsecret libzip \
+  cmake make gcc python3 git \
+  gtest pkgconf openssl
 ```
 
 ## Step 6: Run unit tests (before full build)
