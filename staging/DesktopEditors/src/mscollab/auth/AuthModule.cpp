@@ -68,17 +68,41 @@ std::string AuthModule::buildAuthUrl(const std::string& verifier, int port) cons
            "&code_challenge_method=S256";
 }
 
-static std::string waitForCode(int port) {
+// Opens a loopback listen socket on a kernel-chosen ephemeral port.
+// Returns the bound socket fd and writes the chosen port to `outPort`.
+// Returns -1 on failure.
+static int openLoopbackListener(int& outPort) {
     int server = socket(AF_INET, SOCK_STREAM, 0);
+    if (server < 0) return -1;
     int opt = 1;
     setsockopt(server, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+
     sockaddr_in addr{};
-    addr.sin_family = AF_INET;
+    addr.sin_family      = AF_INET;
     addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
-    addr.sin_port = htons(port);
-    bind(server, (sockaddr*)&addr, sizeof(addr));
-    listen(server, 1);
+    addr.sin_port        = htons(0);   // 0 = let the kernel pick a free port
+    if (bind(server, (sockaddr*)&addr, sizeof(addr)) < 0) {
+        close(server);
+        return -1;
+    }
+    if (listen(server, 1) < 0) {
+        close(server);
+        return -1;
+    }
+
+    sockaddr_in bound{};
+    socklen_t boundLen = sizeof(bound);
+    if (getsockname(server, (sockaddr*)&bound, &boundLen) < 0) {
+        close(server);
+        return -1;
+    }
+    outPort = ntohs(bound.sin_port);
+    return server;
+}
+
+static std::string waitForCode(int server) {
     int client = accept(server, nullptr, nullptr);
+    if (client < 0) { close(server); return {}; }
     char buf[4096]{};
     recv(client, buf, sizeof(buf)-1, 0);
     const char* resp = "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n"
@@ -118,11 +142,18 @@ std::string AuthModule::exchangeCode(const std::string& code,
 }
 
 bool AuthModule::authenticate() {
-    int port = 49152 + (rand() % 16383);
+    // Open the listen socket BEFORE launching the browser so the OS-chosen
+    // port is captured up front and the redirect URL embeds the right port.
+    // rand()-based port picking was deterministic (no srand) and would clash
+    // across app launches.
+    int port = 0;
+    int server = openLoopbackListener(port);
+    if (server < 0) return false;
+
     std::string verifier = generateCodeVerifier();
     std::string url = buildAuthUrl(verifier, port);
     system(("xdg-open '" + url + "' &").c_str());
-    std::string code = waitForCode(port);
+    std::string code = waitForCode(server);   // also closes `server`
     if (code.empty()) return false;
     std::string tokenJson = exchangeCode(code, verifier, port);
     auto extract = [&](const std::string& key) -> std::string {
