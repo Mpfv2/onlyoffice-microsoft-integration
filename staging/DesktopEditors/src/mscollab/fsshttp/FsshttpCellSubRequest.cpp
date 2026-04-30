@@ -248,36 +248,111 @@ static std::string extractBase64FromXml(const std::string& xml) {
     return {};
 }
 
+// Reads a CompactUnsignedInt64 starting at offset `pos` in `buf`.
+// On success, returns true and writes value/byteCount out-params.
+// On overflow / overrun, returns false.
+static bool tryReadUvarintAt(const std::vector<uint8_t>& buf, size_t pos,
+                             uint64_t& outValue, size_t& outBytes) {
+    uint64_t value = 0;
+    int shift = 0;
+    size_t i = pos;
+    while (i < buf.size()) {
+        uint8_t b = buf[i++];
+        value |= static_cast<uint64_t>((b >> 1) & 0x7F) << shift;
+        shift += 7;
+        if (b & 0x01) {
+            outValue = value;
+            outBytes = i - pos;
+            return true;
+        }
+        if (shift >= 64) return false;
+    }
+    return false;
+}
+
+// Schema-aware extractor.
+//
+// A naive stream-header walker cannot navigate FSSHTTPB because compound
+// stream objects contain inline content (uvarints, ExGUIDs) before nested
+// objects — e.g. SubRequest carries 2 uvarints, DataElement carries an
+// ExGUID + uvarint. Reading those bytes as headers walks the parser into
+// garbage.
+//
+// We instead scan the buffer for ObjectGroupObjectData stream headers (type
+// 0x3C, non-compound) by their byte signature, validate each candidate by
+// reading its body (uvarint(dataLen) + dataLen bytes) and confirming the
+// math is consistent with the header's declared length, then extract the
+// inner OOXML payload.
+//
+// 32-bit header for type=0x3C non-compound:
+//   byte 0 = 0xF1   (bit 0 = 1 [32-bit], bit 1 = 0 [non-compound],
+//                    bits 7:2 of value = 0x3C low 6 bits = 0x3C, so:
+//                    0x01 | (0x3C << 2) = 0x01 | 0xF0 = 0xF1)
+//   byte 1 = 0x00   (high 8 bits of (type << 2) = 0)
+//   bytes 2-3 = 15-bit length LE (high bit of byte 3 must be 0)
+//
+// 16-bit header for type=0x3C non-compound:
+//   byte 0 = 0xF0   (bit 0 = 0, bit 1 = 0, bits 7:2 = 0x3C → 0x3C << 2 = 0xF0)
+//   byte 1 = 0xC0 | (length & 0x3F)   (bits 15:14 = 0b11, length 6 bits)
 std::vector<std::vector<uint8_t>>
 FsshttpCellSubRequest::extractOoxmlBlobs(const std::vector<uint8_t>& raw) {
     std::vector<std::vector<uint8_t>> blobs;
-    try {
-        FsshttpBinaryReader reader(raw);
-        while (!reader.eof()) {
-            FsshttpBinaryReader::StreamHeader hdr;
-            if (!reader.readStreamHeader(hdr)) break;
+    if (raw.size() < 2) {
+        if (!raw.empty()) blobs.push_back(raw);
+        return blobs;
+    }
 
-            if (hdr.type == SOT_OBJ_GROUP_OBJECT_DATA && !hdr.compound && hdr.length > 0) {
-                // Body: uvarint(length) + raw OOXML bytes
-                size_t bodyStart = reader.pos();
-                uint64_t dataLen = reader.readUvarint();
-                if (dataLen > 0 && reader.remaining() >= dataLen) {
-                    std::vector<uint8_t> blob(dataLen);
-                    reader.readBytes(blob.data(), static_cast<size_t>(dataLen));
-                    blobs.push_back(std::move(blob));
+    size_t i = 0;
+    while (i + 1 < raw.size()) {
+        // 32-bit header: 0xF1 0x00 [len_lo] [len_hi & 0x7F]
+        if (raw[i] == 0xF1 && raw[i + 1] == 0x00 && i + 4 <= raw.size()) {
+            uint8_t lh = raw[i + 3];
+            if ((lh & 0x80) == 0) {
+                uint32_t length = static_cast<uint32_t>(raw[i + 2])
+                                | (static_cast<uint32_t>(lh) << 8);
+                size_t bodyStart = i + 4;
+                if (length > 0 && bodyStart + length <= raw.size()) {
+                    uint64_t dataLen = 0;
+                    size_t   uvBytes = 0;
+                    if (tryReadUvarintAt(raw, bodyStart, dataLen, uvBytes)
+                            && dataLen > 0
+                            && uvBytes + dataLen == length) {
+                        size_t blobStart = bodyStart + uvBytes;
+                        blobs.emplace_back(raw.begin() + blobStart,
+                                           raw.begin() + blobStart + dataLen);
+                        i = bodyStart + length;
+                        continue;
+                    }
                 }
-                size_t consumed = reader.pos() - bodyStart;
-                if (consumed < hdr.length)
-                    reader.skip(hdr.length - consumed);
-            } else if (!hdr.compound) {
-                reader.skip(hdr.length);
             }
-            // Compound headers: children follow immediately, keep iterating.
         }
-    } catch (...) {}
+
+        // 16-bit header: 0xF0 [0xC0..0xFF]
+        if (raw[i] == 0xF0 && (raw[i + 1] & 0xC0) == 0xC0 && i + 2 <= raw.size()) {
+            uint32_t length = static_cast<uint32_t>(raw[i + 1] & 0x3F);
+            size_t bodyStart = i + 2;
+            if (length > 0 && bodyStart + length <= raw.size()) {
+                uint64_t dataLen = 0;
+                size_t   uvBytes = 0;
+                if (tryReadUvarintAt(raw, bodyStart, dataLen, uvBytes)
+                        && dataLen > 0
+                        && uvBytes + dataLen == length) {
+                    size_t blobStart = bodyStart + uvBytes;
+                    blobs.emplace_back(raw.begin() + blobStart,
+                                       raw.begin() + blobStart + dataLen);
+                    i = bodyStart + length;
+                    continue;
+                }
+            }
+        }
+
+        ++i;
+    }
 
     if (blobs.empty()) {
-        // Fallback: return entire buffer — OOXML may be embedded directly.
+        // Fallback: caller may receive a server response that wraps OOXML
+        // differently (or the buffer is the OOXML directly). Return the
+        // whole buffer so higher layers can attempt XML parsing.
         blobs.push_back(raw);
     }
     return blobs;

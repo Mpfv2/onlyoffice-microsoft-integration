@@ -10,6 +10,11 @@ static size_t curlWrite(void* ptr, size_t size, size_t nmemb, std::string* s) {
     return size * nmemb;
 }
 
+// Forward declarations — these are defined later in this file but used by
+// pollGetChanges() / sendDeltaImmediate() / deltaToOoxmlStub() above their definition.
+static std::string jsonEscapeStr(const std::string& s);
+static std::string xmlEscapeStr(const std::string& s);
+
 FsshttpClient::FsshttpClient(const std::string& fileUrl,
                              const std::string& clientId,
                              std::function<std::string()> tokenProvider)

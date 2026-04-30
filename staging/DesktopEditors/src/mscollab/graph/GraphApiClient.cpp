@@ -192,11 +192,14 @@ bool GraphApiClient::uploadFile(const std::string& localPath,
     std::string response;
     curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
     curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
-    curl_easy_setopt(curl, CURLOPT_UPLOAD, 1L);
-    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, body.c_str());
-    curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, static_cast<long>(body.size()));
-    // Override UPLOAD to use PUT semantics
+    // PUT with a buffer body: don't set CURLOPT_UPLOAD (which needs a READFUNCTION).
+    // CUSTOMREQUEST + POSTFIELDS + POSTFIELDSIZE_LARGE sends the body bytes verbatim
+    // — POSTFIELDSIZE_LARGE so we don't truncate at 2 GiB on long-typedef platforms
+    // and so binary .docx bytes (which contain NULs) aren't strlen-measured.
     curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "PUT");
+    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, body.data());
+    curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE_LARGE,
+                     static_cast<curl_off_t>(body.size()));
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, curlWrite);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response);
     curl_easy_setopt(curl, CURLOPT_TIMEOUT, 30L);

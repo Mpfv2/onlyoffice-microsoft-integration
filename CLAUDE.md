@@ -15,6 +15,15 @@ Fork of OnlyOffice Desktop Editors adding real-time co-authoring with Microsoft 
 - Write all new JS files to `staging/sdkjs/common/`
 - When a new file is added, also add it to `staging/DesktopEditors/src/mscollab/mscollab.pri`
 - Push to GitHub after every logical chunk of work — token budget is finite
+- Commits use `Co-Authored-By: Claude <model> <noreply@anthropic.com>` footer (e.g. `Claude Opus 4.7`).
+
+## Windows = no compile, no test
+
+Nothing in `staging/` is compiled or executed on Windows. The first time anything runs is on Arch Linux. That means the compiler is never your safety net here — be deliberate about things compiler diagnostics would normally catch:
+
+- **File-scope `static` helpers must be defined (or forward-declared) before use.** C++ won't forward-resolve them like a member function. If `pollGetChanges` calls a `static jsonEscapeStr` defined later in the same .cpp, that's a hard compile error.
+- **Tests in `tests/mscollab/` never execute here.** Adding a `PASS:` printf does not mean the assertion holds. Round-trip tests are the easiest place to write a passing-looking test that would actually fail; trace the bytes by hand or be confident the algorithm is correct before claiming a green test.
+- **FSSHTTPB stream walking is a recurring footgun.** Compound stream objects in MS-FSSHTTPB can contain inline content (uvarints, ExGUIDs) *before* nested stream objects — see `SubRequest` (2 uvarints) and `DataElement` (ExGUID + uvarint). A naive "read stream header → if compound continue, else skip(length)" walker will misread those inline bytes as headers and walk off the rails. Anything in `FsshttpCellSubRequest` that parses server responses needs schema-aware decoding, not a generic walker.
 
 ## Repo Structure
 

@@ -10,6 +10,7 @@
 #include <sstream>
 #include <stdexcept>
 #include <cstring>
+#include <cstdlib>   // rand, system
 #include <algorithm>
 
 static size_t curlWrite(void* ptr, size_t size, size_t nmemb, std::string* s) {
