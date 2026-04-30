@@ -23,7 +23,16 @@ Nothing in `staging/` is compiled or executed on Windows. The first time anythin
 
 - **File-scope `static` helpers must be defined (or forward-declared) before use.** C++ won't forward-resolve them like a member function. If `pollGetChanges` calls a `static jsonEscapeStr` defined later in the same .cpp, that's a hard compile error.
 - **Tests in `tests/mscollab/` never execute here.** Adding a `PASS:` printf does not mean the assertion holds. Round-trip tests are the easiest place to write a passing-looking test that would actually fail; trace the bytes by hand or be confident the algorithm is correct before claiming a green test.
-- **FSSHTTPB stream walking is a recurring footgun.** Compound stream objects in MS-FSSHTTPB can contain inline content (uvarints, ExGUIDs) *before* nested stream objects — see `SubRequest` (2 uvarints) and `DataElement` (ExGUID + uvarint). A naive "read stream header → if compound continue, else skip(length)" walker will misread those inline bytes as headers and walk off the rails. Anything in `FsshttpCellSubRequest` that parses server responses needs schema-aware decoding, not a generic walker.
+- **FSSHTTPB stream walking is a recurring footgun.** Compound stream objects in MS-FSSHTTPB can contain inline content (uvarints, ExGUIDs) *before* nested stream objects — see `SubRequest` (2 uvarints) and `DataElement` (ExGUID + uvarint). A naive "read stream header → if compound continue, else skip(length)" walker will misread those inline bytes as headers and walk off the rails. `extractOoxmlBlobs` now scans for the `0xF1 0x00` (32-bit) / `0xF0 0xC?` (16-bit) header signatures of ObjectGroupObjectData (type 0x3C) and validates each candidate via uvarint(length) math — don't replace it with a generic walker.
+
+## SharePoint Online specifics — load-bearing, easy to miss
+
+These are runtime gotchas the protocol/spec docs don't always foreground. Each was a real bug we fixed; future code in this area should preserve them:
+
+- **Endpoint is `_vti_bin/cellstorage.svc`, not `_vti_bin/_vti_aut/author.dll`.** The latter is the SharePoint 2003 FrontPage extensions DLL and is not routed on SPO at all. Word/Mac and Word/Win both POST coauth to cellstorage.svc.
+- **`SOAPAction` header is required.** cellstorage.svc is a WCF service that dispatches by SOAPAction. Without it, SPO returns 415/500. The action is `"http://schemas.microsoft.com/sharepoint/soap/ICellStorages/ExecuteCellStorageRequest"`.
+- **Body needs `<RequestVersion>` as a sibling of `<RequestCollection>`** under `<soap:Body>`. Both live in the `http://schemas.microsoft.com/sharepoint/soap/` namespace. Skipping it makes SPO 500 with "no protocol version".
+- **OAuth listener should bind port 0** and read the chosen port back via `getsockname` instead of guessing a random one. `rand()` is never seeded in this codebase, so any rand-based port pick is deterministic and clashes across launches.
 
 ## Repo Structure
 
